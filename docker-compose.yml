@@ -1,0 +1,14 @@
+version: '3.3'
+services:
+    calc-dev:
+        build:
+          context: .
+          dockerfile: Dockerfile
+        env_file: 
+          - ./.dev.env 
+        volumes:
+            - .:/app
+        network_mode: cbb_server_net
+        container_name: calc-dev
+        expose:
+            - '5173'
