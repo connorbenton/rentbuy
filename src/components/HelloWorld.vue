@@ -10,9 +10,9 @@ import { format } from 'path';
 const rules = {
   down: (value: number) => (downTotalRaw.value / priceRaw.value >= 0.2 && downTotalRaw.value / priceRaw.value < 1) || 'Total Down payment must be at least 20 and not more than 100 percent',
   downOwn: (value: number) => (Number(value) >= 10 && Number(value) < 100) || 'Down payment own funds must be at least 10 percent',
-  second: (value: number) => (Number(value) <= 15 && Number(value) > 0) || 'Amortization must happen within 15 years',
+  second: (value: number) => (Number(value) <= 15 && Number(value) > 0 && Number.isInteger(Number(value))) || 'Amortization must be an integer between 1 and 15 years',
   positiveInteger: (value: number) => (Number.isInteger(Number(value)) && Number(value) > 0) || 'Value must be a positive integer',
-  number: (value: string) => (Number.isFinite(Number(value)) && value !="" ) || 'Value must be a number'
+  number: (value: string) => (Number.isFinite(Number(value)) && value != "") || 'Value must be a number'
 }
 
 const form = ref()
@@ -34,6 +34,7 @@ const form = ref()
 
 //Raw variables for computations
 var priceRaw = reactive({ value: 0 })
+var rentRaw = reactive({ value: 0 })
 var downTotalRaw = reactive({ value: 0 })
 var downOwnRaw = reactive({ value: 0 })
 var downSecondRaw = reactive({ value: 0 })
@@ -55,6 +56,16 @@ var initTotalRaw = reactive({ value: 0 })
 var recurringTotalRaw = reactive({ value: 0 })
 var equityRaw = reactive({ value: 0 })
 var netBuyRaw = reactive({ value: 0 })
+var netRentRaw = reactive({ value: 0 })
+var salePriceRaw = reactive({ value: 0 })
+var realEstateFeeAmountRaw = reactive({ value: 0 })
+var totalGainRaw = reactive({ value: 0 })
+var gainsTaxRaw = reactive({ value: 0 })
+var sellingCostRaw = reactive({ value: 0 })
+var totalRentPaidRaw = reactive({ value: 0 })
+var finalRentRaw = reactive({ value: 0 })
+var investDownRaw = reactive({ value: 0 })
+var investRecurDeltaRaw = reactive({ value: 0 })
 
 watch(
   () => downTotalRaw.value, (value) => {
@@ -74,6 +85,7 @@ const priceDisplay = computed(() => {
   return priceRaw.value.toLocaleString();
 })
 const downOwnDisplay = computed(() => {
+  downOwnRaw.value = Number(priceDisplay.value);
   downOwnRaw.value = (downOwnInput.value / 100 * priceRaw.value);
   return downOwnRaw.value.toLocaleString();
 })
@@ -146,7 +158,7 @@ const secondLengthRaw = computed(() => {
 })
 const secondAmortisation = computed(() => {
   secondAmortisationRaw.value = (initialSecondRaw.value / secondLengthRaw.value);
-  return secondAmortisationRaw.value.toLocaleString();
+  return Math.round(secondAmortisationRaw.value).toLocaleString();
 })
 const investRaw = computed(() => {
   return Number(investInput.value);
@@ -157,22 +169,113 @@ const houseRateRaw = computed(() => {
 const rentRateRaw = computed(() => {
   return Number(rentRateInput.value);
 })
+const finalRent = computed(() => {
+  return Math.round((finalRentRaw.value)).toLocaleString();
+})
+const totalRentPaid = computed(() => {
+  rentRaw.value = parseInt(rentInput.value.toString().replace(/,/g, ''), 10);
+  var x = 0;
+  var currentYearRent = rentRaw.value;
+  for (var i = 0; i < yearsTotalRaw.value; i++) {
+    x = x + currentYearRent * 12;
+    currentYearRent = currentYearRent * (1 + Number(rentRateRaw.value) / 100);
+    finalRentRaw.value = currentYearRent;
+  }
+  totalRentPaidRaw.value = x;
+  return Math.round((totalRentPaidRaw.value)).toLocaleString();
+})
+
+const investDown = computed(() => {
+  var x = downOwnRaw.value;
+  for (var i = 0; i < yearsTotalRaw.value; i++) {
+    x = x * (1 + Number(investRaw.value) / 100);
+  }
+  investDownRaw.value = x;
+  return Math.round((investDownRaw.value)).toLocaleString();
+})
+
+const investRecurDelta = computed(() => {
+  rentRaw.value = parseInt(rentInput.value.toString().replace(/,/g, ''), 10);
+  var x = 0;
+  var currentYearRent = rentRaw.value;
+  for (var i = 0; i < yearsTotalRaw.value; i++) {
+    if (i < secondLengthRaw.value) {
+      var diffCost = recurringYearlyCostBeforeSecondDone.value - (currentYearRent * 12);
+    } else {
+      var diffCost = recurringYearlyCostAfterSecondDone.value - (currentYearRent * 12);
+    }
+    x = x + diffCost;
+    x = x * (1 + Number(investRaw.value) / 100);
+    currentYearRent = currentYearRent * (1 + Number(rentRateRaw.value) / 100);
+  }
+  investRecurDeltaRaw.value = x;
+  return Math.round((investRecurDeltaRaw.value)).toLocaleString();
+})
+
+const yearsTotalRaw = computed(() => {
+  return Number(yearsInProperty.value);
+})
 const secondPremiumRaw = computed(() => {
   return Number(secondPremiumInput.value);
 })
-const initTotal = computed(() => {
-  initTotalRaw.value = (upfrontCostsRaw.value);
-  return initTotalRaw.value.toLocaleString();
+
+const salePrice = computed(() => {
+  salePriceRaw.value = Math.round((priceRaw.value * ((houseRateRaw.value / 100 + 1) ** yearsTotalRaw.value)));
+  return salePriceRaw.value.toLocaleString();
 })
+const realEstateFeeAmount = computed(() => {
+  realEstateFeeAmountRaw.value = salePriceRaw.value * (realEstateFeeInput.value / 100);
+  return Math.round(realEstateFeeAmountRaw.value).toLocaleString();
+})
+const totalGain = computed(() => {
+  totalGainRaw.value = salePriceRaw.value - priceRaw.value;
+  return totalGainRaw.value.toLocaleString();
+})
+const gainsTaxAmount = computed(() => {
+  gainsTaxRaw.value = Math.round(totalGainRaw.value * (gainsTaxInput.value / 100));
+  return gainsTaxRaw.value.toLocaleString();
+})
+
+const initTotal = computed(() => {
+  initTotalRaw.value = (downTotalRaw.value + upfrontCostsRaw.value);
+  return Math.round(initTotalRaw.value).toLocaleString();
+})
+
+const recurringYearlyCostBeforeSecondDone = computed(() => {
+  return (maintRaw.value + secondAmortisationRaw.value + secondInterestRaw.value + firstInterestRaw.value + marginalRaw.value);
+})
+
+const recurringYearlyCostAfterSecondDone = computed(() => {
+  return (firstInterestRaw.value + maintRaw.value + marginalOnlyFirstRaw.value);
+})
+
 const recurringTotal = computed(() => {
-  recurringTotalRaw.value = (4);
-  return recurringTotalRaw.value.toLocaleString();
+  if (yearsTotalRaw.value > secondLengthRaw.value) {
+    recurringTotalRaw.value = secondLengthRaw.value * recurringYearlyCostBeforeSecondDone.value + (yearsTotalRaw.value - secondLengthRaw.value) * recurringYearlyCostAfterSecondDone.value;
+  } else {
+    recurringTotalRaw.value = yearsTotalRaw.value * recurringYearlyCostBeforeSecondDone.value;
+  }
+  return Math.round(recurringTotalRaw.value).toLocaleString();
 })
 const equity = computed(() => {
-  equityRaw.value = (initialSecondRaw.value / secondLengthRaw.value);
-  return equityRaw.value.toLocaleString();
+  equityRaw.value = (totalGainRaw.value + downTotalRaw.value + Math.min(secondMortgageAmortizationLength.value, yearsTotalRaw.value) * secondAmortisationRaw.value);
+  return Math.round(equityRaw.value).toLocaleString();
 })
+const sellingCostAmount = computed(() => {
+  sellingCostRaw.value = (gainsTaxRaw.value + realEstateFeeAmountRaw.value);
+  return Math.round(sellingCostRaw.value).toLocaleString();
+})
+const netBuyAmount = computed(() => {
+  netBuyRaw.value = (initTotalRaw.value + recurringTotalRaw.value - equityRaw.value + sellingCostRaw.value);
+  return Math.round(netBuyRaw.value).toLocaleString();
+})
+const netRentAmount = computed(() => {
+  netRentRaw.value = (totalRentPaidRaw.value - investDownRaw.value - investRecurDeltaRaw.value);
+  return Math.round(netRentRaw.value).toLocaleString();
+})
+
 var priceInput = ref(1000000)
+var rentInput = ref(3000)
 var downOwnInput = ref(10)
 var downSecondInput = ref(10)
 var mortgageRateInput = ref(2.5)
@@ -184,9 +287,11 @@ var marginalInput = ref(35)
 var eigenInput = ref(70)
 var propTaxInput = ref(0)
 var investInput = ref(7)
-var houseRateInput = ref(1)
+var houseRateInput = ref(1.25)
 var rentRateInput = ref(0.5)
 var secondPremiumInput = ref(1)
+var gainsTaxInput = ref(25)
+var realEstateFeeInput = ref(4)
 
 
 const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,###,###", "###,###", "##,###", "#,###", "###", "##", "#"], reverse: true }
@@ -197,13 +302,11 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
     <v-row>
       <v-col>
         <v-card class="mx-2 px-4">
-          <v-card-title> House Purchase Price </v-card-title>
-          <v-card-text>
-            placeholder text
-          </v-card-text>
+          <v-card-title> Property Purchase Price vs. Property Rent</v-card-title>
           <v-row class="pt-2"> <v-col> <v-text-field clearable label="Enter Purchase Price" variant="outlined"
-                v-maska:[currOptions] v-model="priceInput"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly suffix="CHF" label="Purchase Total Amount" variant="outlined" v-model="priceDisplay"></v-text-field> </v-col>
+                v-maska:[currOptions] v-model="priceInput" suffix="CHF"></v-text-field> </v-col>
+            <v-col> <v-text-field clearable label="Enter Rent Per Month" variant="outlined" v-maska:[currOptions]
+                v-model="rentInput" suffix="CHF"></v-text-field> </v-col>
           </v-row>
         </v-card>
 
@@ -279,25 +382,28 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
             <v-col> <v-text-field readonly variant="outlined" v-model="secondAmortisation"></v-text-field> </v-col>
           </v-row>
 
-          <v-row>  <p class="mx-4 text-medium-emphasis text-body-2">The second mortgage typically carries a premium of 0.5-1% above the first mortgage interest rate. </p> </v-row>
-          <v-row> 
-           <v-col> <v-text-field clearable label="% Premium" variant="outlined"
-                v-model="secondPremiumInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <!-- <v-col> <v-card text="Second Mortgage, Interest per Year"></v-card> </v-col> -->
-            <v-col> <v-text-field readonly label="Second Mortgage, Interest per Year" variant="outlined" v-model="secondInterest"></v-text-field> </v-col>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2">The second mortgage typically carries a premium of 0.5-1%
+              above the first mortgage interest rate. </p>
           </v-row>
-        <v-row> <v-col> <v-card text="Total First Mortgage Monthly Payments"></v-card> </v-col>
-          <v-col> <v-text-field readonly variant="outlined" v-model="firstMonthly"></v-text-field> </v-col> </v-row>
+          <v-row>
+            <v-col> <v-text-field clearable label="% Premium" variant="outlined" v-model="secondPremiumInput" suffix="%"
+                :rules="[rules.number]"></v-text-field> </v-col>
+            <!-- <v-col> <v-card text="Second Mortgage, Interest per Year"></v-card> </v-col> -->
+            <v-col> <v-text-field readonly label="Second Mortgage, Interest per Year" variant="outlined"
+                v-model="secondInterest"></v-text-field> </v-col>
+          </v-row>
+          <v-row> <v-col> <v-card text="Total First Mortgage Monthly Payments"></v-card> </v-col>
+            <v-col> <v-text-field readonly variant="outlined" v-model="firstMonthly"></v-text-field> </v-col> </v-row>
 
-        <v-row> <v-col> <v-card text="Total Second Mortgage Monthly Payments"></v-card> </v-col>
-          <v-col> <v-text-field readonly variant="outlined" v-model="secondMonthly"></v-text-field> </v-col> </v-row>
+          <v-row> <v-col> <v-card text="Total Second Mortgage Monthly Payments"></v-card> </v-col>
+            <v-col> <v-text-field readonly variant="outlined" v-model="secondMonthly"></v-text-field> </v-col> </v-row>
         </v-card>
 
         <v-card class="ma-2 pa-2">
           <v-card-title> Upfront Costs</v-card-title>
           <v-card-text>
             This can differ sharply by canton - includes notary/registration fees, property transfer tax, etc.
-            TODO add upfront percentage rules to percentage input box
           </v-card-text>
           <v-row> <v-col> <v-text-field clearable label="Costs as % of Purchase Price" variant="outlined"
                 v-model="upfrontCostsInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
@@ -309,28 +415,42 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
           <v-card-title> Annual Non-Mortgage Costs</v-card-title>
           <v-card-text>
           </v-card-text>
-          <v-row> <p class="mx-4 mb-4 text-high-emphasis text-body-2"> Annual recurring costs include taxes, maintenance, insurance, etc. </p> </v-row>
-          <v-row>  <p class="mx-4 text-medium-emphasis text-body-2"><span class="font-weight-bold text-body-1 text-high-emphasis"> Maintenance</span> per year is usually between 0.5 and 1% of purchase price  </p> </v-row>
-          <v-row> <v-col> <v-text-field clearable label="% of Purchase Price" variant="outlined"
-                v-model="maintInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+          <v-row>
+            <p class="mx-4 mb-4 text-high-emphasis text-body-2"> Annual recurring costs include taxes, maintenance,
+              insurance, etc. </p>
+          </v-row>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2"><span
+                class="font-weight-bold text-body-1 text-high-emphasis"> Maintenance</span> per year is usually between
+              0.5 and 1% of purchase price </p>
+          </v-row>
+          <v-row> <v-col> <v-text-field clearable label="% of Purchase Price" variant="outlined" v-model="maintInput"
+                suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
             <v-col> <v-text-field readonly label="Maintenance per Year" variant="outlined" v-model="maintAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
 
-          <v-row> <p class="mx-4 text-medium-emphasis text-body-2"> Imputed rental value, or Eigenmietwert, is counted as additional income for personal taxes.
-            However, mortgage interest and maintenance can be deducted in order to offset this additional income. TODO deductions offset income, not tax directly 
-            Also check v-text-field label overflow
-          </p> </v-row>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2"> Imputed rental value, or Eigenmietwert, is counted as
+              additional income for personal taxes.
+              However, mortgage interest and maintenance can be deducted in order to offset this additional income. TODO
+              deductions offset income, not tax directly
+              Also check v-text-field label overflow
+            </p>
+          </v-row>
           <v-row> <v-col> <v-text-field clearable label="Marginal Income Tax Rate" variant="outlined"
                 v-model="marginalInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Extra Income Tax Per Year (1st+2nd Mortgages)" variant="outlined" v-model="marginalAmount"
-                suffix="CHF"></v-text-field> </v-col> 
-            <v-col> <v-text-field readonly label="(1st Mortgage Only)" variant="outlined" v-model="marginalOnlyFirstAmount"
-                suffix="CHF"></v-text-field> </v-col> 
-              </v-row>
+            <v-col> <v-text-field readonly label="Extra Income Tax Per Year" persistent-hint hint="(1st+2nd Mortgages)"
+                variant="outlined" v-model="marginalAmount" suffix="CHF"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly persistent-hint hint="(1st Mortgage Only)" variant="outlined"
+                v-model="marginalOnlyFirstAmount" suffix="CHF"></v-text-field> </v-col>
+          </v-row>
 
-          <v-row>  <p class="mx-4 text-medium-emphasis text-body-2">Eigenmietwert is often calculated from a fraction of the actual purchase price. TODO add an expander to hide the next rows under imputed rental value?</p> </v-row>
-          <v-row> <v-col> <v-text-field clearable label="Eigenmietwert Value as % of Price - TODO make slider?" variant="outlined"
-                v-model="eigenInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2">Eigenmietwert is often calculated from a fraction of the
+              actual purchase price. TODO add an expander to hide the next rows under imputed rental value?</p>
+          </v-row>
+          <v-row> <v-col> <v-text-field clearable label="Eigenmietwert Value as % of Price - TODO make slider?"
+                variant="outlined" v-model="eigenInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
             <v-col> <v-text-field readonly label="Eigenmietwert Income per Year" variant="outlined" v-model="eigenAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
           <!-- <v-row>  <p class="mx-4 text-medium-emphasis text-body-2">TODO move this row to Mortgage section, also figure out how to fit all label text inside text-field</p> </v-row>
@@ -339,52 +459,129 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
             <v-col> <v-text-field readonly label="Second Mortgage" variant="outlined" v-model="secondInterest" suffix="CHF"></v-text-field> </v-col> 
           </v-row> -->
 
-          <v-row> <p class="mx-4 text-medium-emphasis text-body-2"> Property Tax only exists in some cantons, and is levied at a percentage of the purchase price.</p> </v-row>
-          <v-row> <v-col> <v-text-field clearable label="% of Purchase Price" variant="outlined"
-                v-model="propTaxInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2"> Property Tax only exists in some cantons, and is levied at a
+              percentage of the purchase price.</p>
+          </v-row>
+          <v-row> <v-col> <v-text-field clearable label="% of Purchase Price" variant="outlined" v-model="propTaxInput"
+                suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
             <v-col> <v-text-field readonly label="Property Tax Per Year" variant="outlined" v-model="propTaxAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
         </v-card>
 
         <v-card class="ma-2 pa-2">
           <v-card-title>Assumptions for the Future</v-card-title>
-          <v-row> <p class="ma-4 text-high-emphasis text-body-2"> These values can strongly affect outcomes. All additional money saved via differences in initial or recurring costs are assumed to be invested and growing
-            at the rate set below. TODO make all of these columns?
-          </p> </v-row>
-          <v-row>  <p class="mx-4 text-medium-emphasis text-body-2">*Average Real Investment Return Rate* (TODO bold) over the last century is around 7% for global equities, lower for various fixed-income portfolios</p> </v-row>
-          <v-row> <v-col> <v-text-field clearable label="Return Rate" variant="outlined"
-                v-model="investInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+          <v-row>
+            <p class="ma-4 text-high-emphasis text-body-2"> These values can strongly affect outcomes. All additional
+              money saved via differences in initial or recurring costs are assumed to be invested and growing
+              at the rate set below. TODO make all of these columns?
+            </p>
+          </v-row>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2">*Average Investment Return Rate* (TODO bold) - Growth rate,
+              not accounting for inflation, is around 9% for global equities over the last century, but lower for various
+              fixed-income portfolios.
+              For an accurate comparison to the buying values here, this value should be adjusted to reflect post-tax
+              gains (i.e. dividend income tax, capital gains tax in some limited circumstances).
+            </p>
+          </v-row>
+          <v-row> <v-col> <v-text-field clearable label="Return Rate, Per Year" variant="outlined" v-model="investInput"
+                suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
             <v-col> <v-text-field readonly label="Maintenance per Year" variant="outlined" v-model="maintAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
-          <v-row>  <p class="mx-4 text-medium-emphasis text-body-2">*Property Price Growth Rate* (TODO bold) is typically 1-1.5% in urban areas of Switzerland over the last 50 years</p> </v-row>
-          <v-row> <v-col> <v-text-field clearable label="Growth Rate" variant="outlined"
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2">*Property Price Growth Rate* (TODO bold) is typically 1-1.5%
+              in urban areas of Switzerland over the last 50 years</p>
+          </v-row>
+          <v-row> <v-col> <v-text-field clearable label="Growth Rate, Per Year" variant="outlined"
                 v-model="houseRateInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
             <v-col> <v-text-field readonly label="Final Property Value" variant="outlined" v-model="maintAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
-          <v-row>  <p class="mx-4 text-medium-emphasis text-body-2">*Rental Price Growth Rate* (TODO bold) is typically coupled to both property price growth rates and interest rates, but can differ over time</p> </v-row>
-          <v-row> <v-col> <v-text-field clearable label="Growth Rate" variant="outlined"
-                v-model="rentRateInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Average Rent Per Month Analysis" variant="outlined" v-model="maintAmount"
-                suffix="CHF"></v-text-field> </v-col> </v-row>
-            </v-card>
-
-      </v-col>
-      <v-col cols="3" no-gutters>
-        <div class="mr-2" style="position: fixed; width: 100px top: 100px">
-        <v-card class="ma-2 pa-2">
-          <v-card-title class="mb-2">Costs</v-card-title>
-          <v-card-text> TODO should split into rent vs buy columns like NYT? </v-card-text>
-          <v-row> <v-col> <v-text-field readonly label="Initial Costs, Buy" variant="outlined" v-model="initTotal"
-                suffix="CHF"></v-text-field> </v-col> </v-row>
-          <v-row> <v-col> <v-text-field readonly label="Recurring Costs, Buy" variant="outlined" v-model="recurringTotal"
-                suffix="CHF"></v-text-field> </v-col> </v-row>
-          <v-row> <v-col> <v-text-field readonly label="Equity (Value Owned)" variant="outlined" v-model="equity"
-                suffix="CHF"></v-text-field> </v-col> </v-row>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2">*Rental Price Growth Rate* (TODO bold) is typically coupled
+              to both property price growth rates and interest rates, but can differ over time</p>
+          </v-row>
+          <v-row> <v-col> <v-text-field clearable label="Growth Rate, Per Year" variant="outlined" v-model="rentRateInput"
+                suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Final Monthly Rent" hint="(In Final Year Of Analysis)" persistent-hint
+                variant="outlined" v-model="finalRent" suffix="CHF"></v-text-field> </v-col> </v-row>
         </v-card>
-        </div>
-      </v-col>
 
-    </v-row>
+        <v-card class="ma-2 pa-2">
+          <v-card-title>Taxes and Fees (include 'with sale'?)</v-card-title>
+          <v-row>
+            <p class="ma-4 text-high-emphasis text-body-2"> These values can strongly affect outcomes. All additional
+              money saved via differences in initial or recurring costs are assumed to be invested and growing
+              at the rate set below. TODO make all of these columns?
+            </p>
+          </v-row>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2"><span
+                class="font-weight-bold text-body-1 text-high-emphasis">Real Estate Sale Fees</span> are generally around
+              4% of the sale price in most of Switzerland</p>
+          </v-row>
+          <v-row> <v-col> <v-text-field clearable label="" variant="outlined" v-model="realEstateFeeInput" suffix="%"
+                :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Sale Price" variant="outlined" v-model="salePrice"
+                suffix="CHF"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Sale Fee" variant="outlined" v-model="realEstateFeeAmount"
+                suffix="CHF"></v-text-field> </v-col> </v-row>
+          <v-row>
+            <p class="mx-4 text-medium-emphasis text-body-2"><span
+                class="font-weight-bold text-body-1 text-high-emphasis">Property Capital Gains Tax Rate </span> differs by
+              canton and by how long is spent living in the property - typically, the longer you stay, the less taxes are
+              owed.</p>
+          </v-row>
+          <v-row> <v-col> <v-text-field clearable label="Tax Rate" variant="outlined" v-model="gainsTaxInput" suffix="%"
+                :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Capital Gain" variant="outlined" v-model="totalGain"
+                suffix="CHF"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Tax Paid" variant="outlined" v-model="gainsTaxAmount"
+                suffix="CHF"></v-text-field> </v-col>
+        </v-row>
+      </v-card>
+
+    </v-col>
+    <v-col cols="3" no-gutters>
+      <div class="mr-2" style="position: fixed; width: 100px top: 100px">
+        <v-card class="ma-2 pa-2">
+          <v-row>
+            <v-col>
+              <v-card-title class="mb-2">Buying Costs</v-card-title>
+              <v-card-text> TODO should split into rent vs buy columns like NYT? Also TODO color code amounts red if
+                expense, green if revenue </v-card-text>
+              <v-row> <v-col> <v-text-field readonly label="Initial Costs, Buy" variant="outlined" persistent-hint hint="(Including Down Payment)" v-model="initTotal"
+                    suffix="CHF"></v-text-field> </v-col> </v-row>
+              <v-row> <v-col> <v-text-field readonly label="Recurring Costs, Buy" variant="outlined"
+                    v-model="recurringTotal" suffix="CHF"></v-text-field> </v-col> </v-row>
+              <v-row> <v-col> <v-text-field readonly label="Equity (Value Owned)" variant="outlined" persistent-hint hint="(Including Down Payment)" v-model="equity"
+                    suffix="CHF"></v-text-field> </v-col> </v-row>
+              <v-row> <v-col> <v-text-field readonly label="Selling Costs" variant="outlined"
+                    v-model="sellingCostAmount" suffix="CHF"></v-text-field> </v-col> </v-row>
+              <v-card-text> TODO should I put a inline variable on this label like "after 'x' years"? </v-card-text>
+              <v-row> <v-col> <v-text-field readonly label="Total Net Cost" variant="outlined" v-model="netBuyAmount"
+                    suffix="CHF"></v-text-field> </v-col> </v-row>
+            </v-col>
+            <v-col>
+              <v-card-title class="mb-2">Renting Costs</v-card-title>
+              <v-card-text> TODO color code amounts red if expense, green if revenue </v-card-text>
+              <v-row> <v-col> <v-text-field readonly label="Total Rent Paid" variant="outlined" v-model="totalRentPaid"
+                    suffix="CHF"></v-text-field> </v-col> </v-row>
+              <v-row> <v-col> <v-text-field readonly label="Investment Returns of Down Payment" variant="outlined"
+                    v-model="investDown" suffix="CHF"></v-text-field> </v-col> </v-row>
+              <v-row> <v-col> <v-text-field readonly label="Investment Returns from Recurring Cost Delta"
+                    variant="outlined" v-model="investRecurDelta" suffix="CHF"></v-text-field> </v-col> </v-row>
+              <v-card-text> TODO make the net costs parallel under a subtotal line, and should I put a inline variable
+                on this label like "after 'x' years"? </v-card-text>
+              <v-row> <v-col> <v-text-field color="primary" readonly label="Total Net Cost" variant="outlined" v-model="netRentAmount"
+                    suffix="CHF"></v-text-field> </v-col> </v-row>
+            </v-col>
+          </v-row>
+        </v-card>
+      </div>
+    </v-col>
+
+  </v-row>
 
 
 </v-container></template>
