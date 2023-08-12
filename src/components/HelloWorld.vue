@@ -4,11 +4,13 @@ import { resourceLimits } from 'worker_threads';
 import { vMaska } from 'maska'
 import { reverse } from 'dns';
 import { format } from 'path';
+import { json } from 'stream/consumers';
+import { exportAllDeclaration } from '@babel/types';
 
 
 // Rules for evaluating form input
 const rules = {
-  down: (value: number) => (rawVariables.downTotalRaw.value / rawVariables.priceRaw.value >= 0.2 && rawVariables.downTotalRaw.value / rawVariables.priceRaw.value < 1) || 'Total Down payment must be at least 20 and not more than 100 percent',
+  down: (value: number) => (rawVar.downTotalRaw / rawVar.priceRaw >= 0.2 && rawVar.downTotalRaw / rawVar.priceRaw < 1) || 'Total Down payment must be at least 20 and not more than 100 percent',
   downOwn: (value: number) => (Number(value) >= 10 && Number(value) < 100) || 'Down payment own funds must be at least 10 percent',
   second: (value: number) => (Number(value) <= 15 && Number(value) > 0 && Number.isInteger(Number(value))) || 'Amortization must be an integer between 1 and 15 years',
   positiveInteger: (value: number) => (Number.isInteger(Number(value)) && Number(value) > 0) || 'Value must be a positive integer',
@@ -24,16 +26,65 @@ const form = ref()
 //   count.value++
 
 //   // DOM not yet updated
-//   console.log(rawVariables.downTotalRaw.value) // 0
+//   console.log(rawVar.downTotalRaw.value) // 0
 
 //   // DOM is now updated
-//   console.log(rawVariables.downTotalRaw.value) // 1
+//   console.log(rawVar.downTotalRaw.value) // 1
 // }
 
+// hashing the data
+const cyrb53 = (str: string, seed = 0) => {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) {
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
 
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+};
+
+async function hash() {
+  var allData = {
+    rawVar: {},
+    comVar: {},
+    initVar: {},
+  };
+  allData.rawVar = rawVar;
+  allData.comVar = comVar;
+  allData.initVar = initVar;
+
+  let hashVal = cyrb53(JSON.stringify(allData));
+  let url = 'https://o3dpyfo8of.execute-api.eu-central-1.amazonaws.com/prod';
+
+  let response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json;charset=UTF-8'
+    },
+    body: JSON.stringify({
+      dataUUID: hashVal,
+      comVar: comVar,
+      rawVar: rawVar,
+      initVar: initVar
+    })
+  });
+  let responseOK = response && response.ok;
+  if (responseOK) {
+    let data = await response.json();
+    console.log(data);
+    // do something with data
+  }
+  return cyrb53(JSON.stringify(allData));
+}
 
 //Raw variables for computations
-const rawVariables = reactive({
+const rawVar = reactive({
   priceRaw: 0,
   rentRaw: 0,
   downTotalRaw: 0,
@@ -71,7 +122,7 @@ const rawVariables = reactive({
 })
 
 watch(
-  () => rawVariables.downTotalRaw, (value) => {
+  () => rawVar.downTotalRaw, (value) => {
     // console.log(form.value)
     if (form.value != undefined) form.value.validate()
     // console.log(`total down is: ${value}`)
@@ -83,202 +134,207 @@ async function validate() {
   if (valid) alert('Form is valid')
 }
 // Computed variables 
-const computedVariables = computed ()
-const priceDisplay = computed(() => {
-  rawVariables.priceRaw= parseInt(initialValues.priceInput.toString().replace(/,/g, ''), 10);
-  return rawVariables.priceRaw.toLocaleString();
-})
-const downOwnDisplay = computed(() => {
-  rawVariables.downOwnRaw= Number(priceDisplay.value);
-  rawVariables.downOwnRaw= (initialValues.downOwnInput / 100 * rawVariables.priceRaw);
-  return rawVariables.downOwnRaw.toLocaleString();
-})
-const downSecondDisplay = computed(() => {
-  rawVariables.downSecondRaw= (initialValues.downSecondInput / 100 * rawVariables.priceRaw);
-  return rawVariables.downSecondRaw.toLocaleString();
-})
-const downTotalInput = computed(() => { return parseInt(initialValues.downSecondInput.toString()) + parseInt(initialValues.downOwnInput.toString()) })
-const downTotalDisplay = computed(() => {
-  rawVariables.downTotalRaw= (rawVariables.downOwnRaw+ rawVariables.downSecondRaw);
-  return rawVariables.downTotalRaw.toLocaleString();
-})
-const mortgageRateRaw = computed(() => {
-  return Number(initialValues.mortgageRateInput);
-})
-const initialMortgagedAmount = computed(() => {
-  rawVariables.initialMortgageRaw= (rawVariables.priceRaw- rawVariables.downTotalRaw);
-  return rawVariables.initialMortgageRaw.toLocaleString();
-})
-const initialFirstAmount = computed(() => {
-  rawVariables.initialFirstRaw= (Math.min(rawVariables.initialMortgageRaw, rawVariables.priceRaw* 0.67));
-  return rawVariables.initialFirstRaw.toLocaleString();
-})
-const initialSecondAmount = computed(() => {
-  rawVariables.initialSecondRaw= (Math.max(rawVariables.initialMortgageRaw- rawVariables.initialFirstRaw, 0));
-  return rawVariables.initialSecondRaw.toLocaleString();
-})
-const firstMonthly = computed(() => {
-  rawVariables.firstMonthlyRaw= (Math.max(rawVariables.initialMortgageRaw- rawVariables.initialFirstRaw, 0));
-  return rawVariables.firstMonthlyRaw.toLocaleString();
-})
-const secondMonthly = computed(() => {
-  rawVariables.secondMonthlyRaw= (Math.max(rawVariables.initialMortgageRaw- rawVariables.initialFirstRaw, 0));
-  return rawVariables.secondMonthlyRaw.toLocaleString();
-})
-const upfrontCostsAmount = computed(() => {
-  rawVariables.upfrontCostsRaw= (initialValues.upfrontCostsInput / 100 * rawVariables.priceRaw);
-  return rawVariables.upfrontCostsRaw.toLocaleString();
-})
-const maintAmount = computed(() => {
-  rawVariables.maintRaw= (initialValues.maintInput / 100 * rawVariables.priceRaw);
-  return rawVariables.maintRaw.toLocaleString();
-})
-const marginalAmount = computed(() => {
-  rawVariables.marginalRaw= (initialValues.marginalInput / 100 * (rawVariables.eigenRaw - rawVariables.maintRaw - rawVariables.firstInterestRaw - rawVariables.secondInterestRaw));
-  return rawVariables.marginalRaw.toLocaleString();
-})
-const marginalOnlyFirstAmount = computed(() => {
-  rawVariables.marginalOnlyFirstRaw = (initialValues.marginalInput / 100 * (rawVariables.eigenRaw - rawVariables.maintRaw - rawVariables.firstInterestRaw));
-  return rawVariables.marginalOnlyFirstRaw.toLocaleString();
-})
-const eigenAmount = computed(() => {
-  rawVariables.eigenRaw = (initialValues.eigenInput / 100 * .0425 * rawVariables.priceRaw);
-  return rawVariables.eigenRaw.toLocaleString();
-})
-const propTaxAmount = computed(() => {
-  rawVariables.marginalRaw = (initialValues.marginalInput / 100 * rawVariables.priceRaw);
-  return rawVariables.propTaxRaw.toLocaleString();
-})
-const firstInterest = computed(() => {
-  rawVariables.firstInterestRaw = (mortgageRateRaw / 100 * rawVariables.initialFirstRaw);
-  return rawVariables.firstInterestRaw.toLocaleString();
-})
-const secondInterest = computed(() => {
-  rawVariables.secondInterestRaw = ((mortgageRateRaw + secondPremiumRaw) / 100 * rawVariables.initialSecondRaw);
-  return rawVariables.secondInterestRaw.toLocaleString();
-})
-const secondLengthRaw = computed(() => {
-  return Number(initialValues.secondMortgageAmortizationLength);
-})
-const secondAmortisation = computed(() => {
-  rawVariables.secondAmortisationRaw = (rawVariables.initialSecondRaw / secondLengthRaw);
-  return Math.round(rawVariables.secondAmortisationRaw).toLocaleString();
-})
-const investRaw = computed(() => {
-  return Number(initialValues.investInput);
-})
-const houseRateRaw = computed(() => {
-  return Number(initialValues.houseRateInput);
-})
-const rentRateRaw = computed(() => {
-  return Number(initialValues.rentRateInput);
-})
-const finalRent = computed(() => {
-  return Math.round((rawVariables.finalRentRaw)).toLocaleString();
-})
-const totalRentPaid = computed(() => {
-  rawVariables.rentRaw = parseInt(initialValues.rentInput.toString().replace(/,/g, ''), 10);
-  var x = 0;
-  var currentYearRent = rawVariables.rentRaw;
-  for (var i = 0; i < yearsTotalRaw; i++) {
-    x = x + currentYearRent * 12;
-    currentYearRent = currentYearRent * (1 + Number(rentRateRaw) / 100);
-    rawVariables.finalRentRaw = currentYearRent;
-  }
-  rawVariables.totalRentPaidRaw = x;
-  return Math.round((rawVariables.totalRentPaidRaw)).toLocaleString();
-})
 
-const investDown = computed(() => {
-  var x = rawVariables.downOwnRaw;
-  for (var i = 0; i < yearsTotalRaw; i++) {
-    x = x * (1 + Number(investRaw) / 100);
-  }
-  rawVariables.investDownRaw = x;
-  return Math.round((rawVariables.investDownRaw)).toLocaleString();
-})
+const comVar = reactive({
 
-const investRecurDelta = computed(() => {
-  rawVariables.rentRaw = parseInt(initialValues.rentInput.toString().replace(/,/g, ''), 10);
-  var x = 0;
-  var currentYearRent = rawVariables.rentRaw;
-  for (var i = 0; i < yearsTotalRaw; i++) {
-    if (i < secondLengthRaw) {
-      var diffCost = recurringYearlyCostBeforeSecondDone - (currentYearRent * 12);
-    } else {
-      var diffCost = recurringYearlyCostAfterSecondDone - (currentYearRent * 12);
+  priceDisplay: computed(() => {
+    rawVar.priceRaw = parseInt(initVar.priceInput.toString().replace(/,/g, ''), 10);
+    return rawVar.priceRaw.toLocaleString();
+  }),
+  downOwnDisplay: computed(() => {
+    rawVar.downOwnRaw = Number(comVar.priceDisplay);
+    rawVar.downOwnRaw = (initVar.downOwnInput / 100 * rawVar.priceRaw);
+    return rawVar.downOwnRaw.toLocaleString();
+  }),
+  downSecondDisplay: computed(() => {
+    rawVar.downSecondRaw = (initVar.downSecondInput / 100 * rawVar.priceRaw);
+    return rawVar.downSecondRaw.toLocaleString();
+  }),
+  downTotalInput: computed(() => { return parseInt(initVar.downSecondInput.toString()) + parseInt(initVar.downOwnInput.toString()) }),
+  downTotalDisplay: computed(() => {
+    rawVar.downTotalRaw = (rawVar.downOwnRaw + rawVar.downSecondRaw);
+    return rawVar.downTotalRaw.toLocaleString();
+  }),
+  mortgageRateCom: computed(() => {
+    return Number(initVar.mortgageRateInput);
+  }),
+  initialMortgagedAmount: computed(() => {
+    rawVar.initialMortgageRaw = (rawVar.priceRaw - rawVar.downTotalRaw);
+    return rawVar.initialMortgageRaw.toLocaleString();
+  }),
+  initialFirstAmount: computed(() => {
+    rawVar.initialFirstRaw = (Math.min(rawVar.initialMortgageRaw, rawVar.priceRaw * 0.67));
+    return rawVar.initialFirstRaw.toLocaleString();
+  }),
+  initialSecondAmount: computed(() => {
+    rawVar.initialSecondRaw = (Math.max(rawVar.initialMortgageRaw - rawVar.initialFirstRaw, 0));
+    return rawVar.initialSecondRaw.toLocaleString();
+  }),
+  firstMonthly: computed(() => {
+    rawVar.firstMonthlyRaw = (Math.max(rawVar.initialMortgageRaw - rawVar.initialFirstRaw, 0));
+    return rawVar.firstMonthlyRaw.toLocaleString();
+  }),
+  secondMonthly: computed(() => {
+    rawVar.secondMonthlyRaw = (Math.max(rawVar.initialMortgageRaw - rawVar.initialFirstRaw, 0));
+    return rawVar.secondMonthlyRaw.toLocaleString();
+  }),
+  upfrontCostsAmount: computed(() => {
+    rawVar.upfrontCostsRaw = (initVar.upfrontCostsInput / 100 * rawVar.priceRaw);
+    return rawVar.upfrontCostsRaw.toLocaleString();
+  }),
+  maintAmount: computed(() => {
+    rawVar.maintRaw = (initVar.maintInput / 100 * rawVar.priceRaw);
+    return rawVar.maintRaw.toLocaleString();
+  }),
+  marginalAmount: computed(() => {
+    rawVar.marginalRaw = (initVar.marginalInput / 100 * (rawVar.eigenRaw - rawVar.maintRaw - rawVar.firstInterestRaw - rawVar.secondInterestRaw));
+    return rawVar.marginalRaw.toLocaleString();
+  }),
+  marginalOnlyFirstAmount: computed(() => {
+    rawVar.marginalOnlyFirstRaw = (initVar.marginalInput / 100 * (rawVar.eigenRaw - rawVar.maintRaw - rawVar.firstInterestRaw));
+    return rawVar.marginalOnlyFirstRaw.toLocaleString();
+  }),
+  eigenAmount: computed(() => {
+    rawVar.eigenRaw = (initVar.eigenInput / 100 * .0425 * rawVar.priceRaw);
+    return rawVar.eigenRaw.toLocaleString();
+  }),
+  propTaxAmount: computed(() => {
+    rawVar.marginalRaw = (initVar.marginalInput / 100 * rawVar.priceRaw);
+    return rawVar.propTaxRaw.toLocaleString();
+  }),
+  firstInterest: computed(() => {
+    rawVar.firstInterestRaw = (comVar.mortgageRateCom / 100 * rawVar.initialFirstRaw);
+    return rawVar.firstInterestRaw.toLocaleString();
+  }),
+  secondInterest: computed(() => {
+    rawVar.secondInterestRaw = ((comVar.mortgageRateCom + comVar.secondPremiumCom) / 100 * rawVar.initialSecondRaw);
+    return rawVar.secondInterestRaw.toLocaleString();
+  }),
+  secondLengthCom: computed(() => {
+    return Number(initVar.secondMortgageAmortizationLength);
+  }),
+  secondAmortisation: computed(() => {
+    rawVar.secondAmortisationRaw = (rawVar.initialSecondRaw / comVar.secondLengthCom);
+    return Math.round(rawVar.secondAmortisationRaw).toLocaleString();
+  }),
+  investCom: computed(() => {
+    return Number(initVar.investInput);
+  }),
+  houseRateCom: computed(() => {
+    return Number(initVar.houseRateInput);
+  }),
+  rentRateCom: computed(() => {
+    return Number(initVar.rentRateInput);
+  }),
+  finalRent: computed(() => {
+    return Math.round((rawVar.finalRentRaw)).toLocaleString();
+  }),
+  totalRentPaid: computed(() => {
+    rawVar.rentRaw = parseInt(initVar.rentInput.toString().replace(/,/g, ''), 10);
+    var x = 0;
+    var currentYearRent = rawVar.rentRaw;
+    for (var i = 0; i < comVar.yearsTotalCom; i++) {
+      x = x + currentYearRent * 12;
+      currentYearRent = currentYearRent * (1 + Number(comVar.rentRateCom) / 100);
+      rawVar.finalRentRaw = currentYearRent;
     }
-    x = x + diffCost;
-    x = x * (1 + Number(investRaw) / 100);
-    currentYearRent = currentYearRent * (1 + Number(rentRateRaw) / 100);
-  }
-  rawVariables.investRecurDeltaRaw = x;
-  return Math.round((rawVariables.investRecurDeltaRaw)).toLocaleString();
+    rawVar.totalRentPaidRaw = x;
+    return Math.round((rawVar.totalRentPaidRaw)).toLocaleString();
+  }),
+
+  investDown: computed(() => {
+    var x = rawVar.downOwnRaw;
+    for (var i = 0; i < comVar.yearsTotalCom; i++) {
+      x = x * (1 + Number(comVar.investCom) / 100);
+    }
+    rawVar.investDownRaw = x;
+    return Math.round((rawVar.investDownRaw)).toLocaleString();
+  }),
+
+  investRecurDelta: computed(() => {
+    rawVar.rentRaw = parseInt(initVar.rentInput.toString().replace(/,/g, ''), 10);
+    var x = 0;
+    var currentYearRent = rawVar.rentRaw;
+    for (var i = 0; i < comVar.yearsTotalCom; i++) {
+      if (i < comVar.secondLengthCom) {
+        var diffCost = comVar.recurringYearlyCostBeforeSecondDone - (currentYearRent * 12);
+      } else {
+        var diffCost = comVar.recurringYearlyCostAfterSecondDone - (currentYearRent * 12);
+      }
+      x = x + diffCost;
+      x = x * (1 + Number(comVar.investCom) / 100);
+      currentYearRent = currentYearRent * (1 + Number(comVar.rentRateCom) / 100);
+    }
+    rawVar.investRecurDeltaRaw = x;
+    return Math.round((rawVar.investRecurDeltaRaw)).toLocaleString();
+  }),
+
+  yearsTotalCom: computed(() => {
+    return Number(initVar.yearsInProperty);
+  }),
+  secondPremiumCom: computed(() => {
+    return Number(initVar.secondPremiumInput);
+  }),
+
+  salePrice: computed(() => {
+    rawVar.salePriceRaw = Math.round((rawVar.priceRaw * ((comVar.houseRateCom / 100 + 1) ** comVar.yearsTotalCom)));
+    return rawVar.salePriceRaw.toLocaleString();
+  }),
+  realEstateFeeAmount: computed(() => {
+    rawVar.realEstateFeeAmountRaw = rawVar.salePriceRaw * (initVar.realEstateFeeInput / 100);
+    return Math.round(rawVar.realEstateFeeAmountRaw).toLocaleString();
+  }),
+  totalGain: computed(() => {
+    rawVar.totalGainRaw = rawVar.salePriceRaw - rawVar.priceRaw;
+    return rawVar.totalGainRaw.toLocaleString();
+  }),
+  gainsTaxAmount: computed(() => {
+    rawVar.gainsTaxRaw = Math.round(rawVar.totalGainRaw * (initVar.gainsTaxInput / 100));
+    return rawVar.gainsTaxRaw.toLocaleString();
+  }),
+
+  initTotal: computed(() => {
+    rawVar.initTotalRaw = (rawVar.downTotalRaw + rawVar.upfrontCostsRaw);
+    return Math.round(rawVar.initTotalRaw).toLocaleString();
+  }),
+
+  recurringYearlyCostBeforeSecondDone: computed(() => {
+    return (rawVar.maintRaw + rawVar.secondAmortisationRaw + rawVar.secondInterestRaw + rawVar.firstInterestRaw + rawVar.marginalRaw);
+  }),
+
+  recurringYearlyCostAfterSecondDone: computed(() => {
+    return (rawVar.firstInterestRaw + rawVar.maintRaw + rawVar.marginalOnlyFirstRaw);
+  }),
+
+  recurringTotal: computed(() => {
+    if (comVar.yearsTotalCom > comVar.secondLengthCom) {
+      rawVar.recurringTotalRaw = comVar.secondLengthCom * comVar.recurringYearlyCostBeforeSecondDone + (comVar.yearsTotalCom - comVar.secondLengthCom) * comVar.recurringYearlyCostAfterSecondDone;
+    } else {
+      rawVar.recurringTotalRaw = comVar.yearsTotalCom * comVar.recurringYearlyCostBeforeSecondDone;
+    }
+    return Math.round(rawVar.recurringTotalRaw).toLocaleString();
+  }),
+  equity: computed(() => {
+    rawVar.equityRaw = (rawVar.totalGainRaw + rawVar.downTotalRaw + Math.min(initVar.secondMortgageAmortizationLength, comVar.yearsTotalCom) * rawVar.secondAmortisationRaw);
+    return Math.round(rawVar.equityRaw).toLocaleString();
+  }),
+  sellingCostAmount: computed(() => {
+    rawVar.sellingCostRaw = (rawVar.gainsTaxRaw + rawVar.realEstateFeeAmountRaw);
+    return Math.round(rawVar.sellingCostRaw).toLocaleString();
+  }),
+  netBuyAmount: computed(() => {
+    rawVar.netBuyRaw = (rawVar.initTotalRaw + rawVar.recurringTotalRaw - rawVar.equityRaw + rawVar.sellingCostRaw);
+    return Math.round(rawVar.netBuyRaw).toLocaleString();
+  }),
+  netRentAmount: computed(() => {
+    rawVar.netRentRaw = (rawVar.totalRentPaidRaw - rawVar.investDownRaw - rawVar.investRecurDeltaRaw);
+    return Math.round(rawVar.netRentRaw).toLocaleString();
+  }),
+
 })
 
-const yearsTotalRaw = computed(() => {
-  return Number(initialValues.yearsInProperty);
-})
-const secondPremiumRaw = computed(() => {
-  return Number(initialValues.secondPremiumInput);
-})
 
-const salePrice = computed(() => {
-  rawVariables.salePriceRaw = Math.round((rawVariables.priceRaw * ((houseRateRaw / 100 + 1) ** yearsTotalRaw)));
-  return rawVariables.salePriceRaw.toLocaleString();
-})
-const realEstateFeeAmount = computed(() => {
-  rawVariables.realEstateFeeAmountRaw = rawVariables.salePriceRaw * (initialValues.realEstateFeeInput / 100);
-  return Math.round(rawVariables.realEstateFeeAmountRaw).toLocaleString();
-})
-const totalGain = computed(() => {
-  rawVariables.totalGainRaw = rawVariables.salePriceRaw - rawVariables.priceRaw;
-  return rawVariables.totalGainRaw.toLocaleString();
-})
-const gainsTaxAmount = computed(() => {
-  rawVariables.gainsTaxRaw = Math.round(rawVariables.totalGainRaw * (initialValues.gainsTaxInput / 100));
-  return rawVariables.gainsTaxRaw.toLocaleString();
-})
-
-const initTotal = computed(() => {
-  rawVariables.initTotalRaw = (rawVariables.downTotalRaw + rawVariables.upfrontCostsRaw);
-  return Math.round(rawVariables.initTotalRaw).toLocaleString();
-})
-
-const recurringYearlyCostBeforeSecondDone = computed(() => {
-  return (rawVariables.maintRaw + rawVariables.secondAmortisationRaw + rawVariables.secondInterestRaw + rawVariables.firstInterestRaw + rawVariables.marginalRaw);
-})
-
-const recurringYearlyCostAfterSecondDone = computed(() => {
-  return (rawVariables.firstInterestRaw + rawVariables.maintRaw + rawVariables.marginalOnlyFirstRaw);
-})
-
-const recurringTotal = computed(() => {
-  if (yearsTotalRaw > secondLengthRaw) {
-    rawVariables.recurringTotalRaw = secondLengthRaw * recurringYearlyCostBeforeSecondDone + (yearsTotalRaw - secondLengthRaw) * recurringYearlyCostAfterSecondDone;
-  } else {
-    rawVariables.recurringTotalRaw = yearsTotalRaw * recurringYearlyCostBeforeSecondDone;
-  }
-  return Math.round(rawVariables.recurringTotalRaw).toLocaleString();
-})
-const equity = computed(() => {
-  rawVariables.equityRaw = (rawVariables.totalGainRaw + rawVariables.downTotalRaw + Math.min(initialValues.secondMortgageAmortizationLength, yearsTotalRaw) * rawVariables.secondAmortisationRaw);
-  return Math.round(rawVariables.equityRaw).toLocaleString();
-})
-const sellingCostAmount = computed(() => {
-  rawVariables.sellingCostRaw = (rawVariables.gainsTaxRaw + rawVariables.realEstateFeeAmountRaw);
-  return Math.round(rawVariables.sellingCostRaw).toLocaleString();
-})
-const netBuyAmount = computed(() => {
-  rawVariables.netBuyRaw = (rawVariables.initTotalRaw + rawVariables.recurringTotalRaw - rawVariables.equityRaw + rawVariables.sellingCostRaw);
-  return Math.round(rawVariables.netBuyRaw).toLocaleString();
-})
-const netRentAmount = computed(() => {
-  rawVariables.netRentRaw = (rawVariables.totalRentPaidRaw - rawVariables.investDownRaw - rawVariables.investRecurDeltaRaw);
-  return Math.round(rawVariables.netRentRaw).toLocaleString();
-})
-
-const initialValues = reactive({
+const initVar = reactive({
   priceInput: 1000000,
   rentInput: 3000,
   downOwnInput: 10,
@@ -300,19 +356,23 @@ const initialValues = reactive({
 })
 
 
+
+
+
 const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,###,###", "###,###", "##,###", "#,###", "###", "##", "#"], reverse: true }
 </script>
 
 <template>
   <v-container>
+    <v-row><v-btn @click="hash">Calculate Hash</v-btn> </v-row>
     <v-row>
       <v-col>
         <v-card class="mx-2 px-4">
           <v-card-title> Property Purchase Price vs. Property Rent</v-card-title>
           <v-row class="pt-2"> <v-col> <v-text-field clearable label="Enter Purchase Price" variant="outlined"
-                v-maska:[currOptions] v-model="initialValues.priceInput" suffix="CHF"></v-text-field> </v-col>
+                v-maska:[currOptions] v-model="initVar.priceInput" suffix="CHF"></v-text-field> </v-col>
             <v-col> <v-text-field clearable label="Enter Rent Per Month" variant="outlined" v-maska:[currOptions]
-                v-model="initialValues.rentInput" suffix="CHF"></v-text-field> </v-col>
+                v-model="initVar.rentInput" suffix="CHF"></v-text-field> </v-col>
           </v-row>
         </v-card>
 
@@ -324,7 +384,7 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
           </v-card-text>
           <v-row>
             <v-col> <v-text-field label="TODO DONE add rule for integer" variant="outlined" suffix="years"
-                v-model="initialValues.yearsInProperty" :rules="[rules.positiveInteger]"></v-text-field> </v-col>
+                v-model="initVar.yearsInProperty" :rules="[rules.positiveInteger]"></v-text-field> </v-col>
             <!-- <v-col> <v-card text="The upfront costs
               of buying are better spread out over many years"></v-card> </v-col> -->
           </v-row>
@@ -339,18 +399,18 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
               , and total down payment must be at least 20% of the purchase price.
             </v-card-text>
             <v-row> <v-col> <v-text-field clearable label="% Down from Own Funds + 3rd Pillar" variant="outlined"
-                  v-model="initialValues.downOwnInput" suffix="%" :rules="[rules.downOwn]"></v-text-field> </v-col>
+                  v-model="initVar.downOwnInput" suffix="%" :rules="[rules.downOwn]"></v-text-field> </v-col>
               <v-col> <v-text-field readonly label="Own Funds Down Amount" variant="outlined"
-                  v-model="downOwnDisplay"></v-text-field> </v-col> </v-row>
+                  v-model="comVar.downOwnDisplay"></v-text-field> </v-col> </v-row>
             <v-row> <v-col> <v-text-field clearable label="% Down from 2nd Pillar" variant="outlined"
-                  hint="Total withdrawal only possible up to age 50" v-model="initialValues.downSecondInput" suffix="%"
+                  hint="Total withdrawal only possible up to age 50" v-model="initVar.downSecondInput" suffix="%"
                   :rules="[rules.down]"></v-text-field> </v-col>
               <v-col> <v-text-field readonly label="2nd Pillar Down Amount" variant="outlined"
-                  v-model="downSecondDisplay"></v-text-field> </v-col> </v-row>
+                  v-model="comVar.downSecondDisplay"></v-text-field> </v-col> </v-row>
             <v-row> <v-col> <v-text-field readonly label="Percent Down Payment Total" variant="outlined"
-                  v-model="downTotalInput" suffix="%" :rules="[rules.down]"></v-text-field> </v-col>
+                  v-model="comVar.downTotalInput" suffix="%" :rules="[rules.down]"></v-text-field> </v-col>
               <v-col> <v-text-field readonly label="Down Payment Total Amount" variant="outlined"
-                  v-model="downTotalDisplay"></v-text-field> </v-col> </v-row>
+                  v-model="comVar.downTotalDisplay"></v-text-field> </v-col> </v-row>
           </v-card>
         </v-form>
 
@@ -362,32 +422,34 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
 
           <v-row> <v-col> <v-card text="Mortgage Interest Rate"></v-card> </v-col>
             <v-col> <v-text-field label="TODO DONE add number check rule" variant="outlined"
-                v-model="initialValues.mortgageRateInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+                v-model="initVar.mortgageRateInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
           </v-row>
 
           <v-row> <v-col> <v-card text="Years to Second Mortgage Amortization"></v-card> </v-col>
             <v-col> <v-text-field variant="outlined" label="TODO DONE make rules check force this as int"
-                :rules="[rules.second]" v-model="initialValues.secondMortgageAmortizationLength"></v-text-field> </v-col>
+                :rules="[rules.second]" v-model="initVar.secondMortgageAmortizationLength"></v-text-field> </v-col>
           </v-row>
 
           <v-row> <v-col> <v-card text="Total Initial Mortgaged Amount"></v-card> </v-col>
-            <v-col> <v-text-field readonly variant="outlined" v-model="initialMortgagedAmount"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly variant="outlined" v-model="comVar.initialMortgagedAmount"></v-text-field>
+            </v-col>
           </v-row>
 
           <v-row> <v-col> <v-card text="Total First Mortgage amount (max 67% of purchase price)"></v-card> </v-col>
-            <v-col> <v-text-field readonly variant="outlined" v-model="initialFirstAmount"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly variant="outlined" v-model="comVar.initialFirstAmount"></v-text-field> </v-col>
           </v-row>
 
           <v-row> <v-col> <v-card text="First Mortgage, Interest per Year"></v-card> </v-col>
-            <v-col> <v-text-field readonly variant="outlined" v-model="firstInterest"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly variant="outlined" v-model="comVar.firstInterest"></v-text-field> </v-col>
           </v-row>
 
           <v-row> <v-col> <v-card text="Total Second Mortgage amount (max 13% of purchase price)"></v-card> </v-col>
-            <v-col> <v-text-field readonly variant="outlined" v-model="initialSecondAmount"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly variant="outlined" v-model="comVar.initialSecondAmount"></v-text-field>
+            </v-col>
           </v-row>
 
           <v-row> <v-col> <v-card text="Second Mortgage, Amortisation per Year"></v-card> </v-col>
-            <v-col> <v-text-field readonly variant="outlined" v-model="secondAmortisation"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly variant="outlined" v-model="comVar.secondAmortisation"></v-text-field> </v-col>
           </v-row>
 
           <v-row>
@@ -395,17 +457,19 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
               above the first mortgage interest rate. </p>
           </v-row>
           <v-row>
-            <v-col> <v-text-field clearable label="% Premium" variant="outlined"
-                v-model="initialValues.secondPremiumInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field clearable label="% Premium" variant="outlined" v-model="initVar.secondPremiumInput"
+                suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
             <!-- <v-col> <v-card text="Second Mortgage, Interest per Year"></v-card> </v-col> -->
             <v-col> <v-text-field readonly label="Second Mortgage, Interest per Year" variant="outlined"
-                v-model="secondInterest"></v-text-field> </v-col>
+                v-model="comVar.secondInterest"></v-text-field> </v-col>
           </v-row>
           <v-row> <v-col> <v-card text="Total First Mortgage Monthly Payments"></v-card> </v-col>
-            <v-col> <v-text-field readonly variant="outlined" v-model="firstMonthly"></v-text-field> </v-col> </v-row>
+            <v-col> <v-text-field readonly variant="outlined" v-model="comVar.firstMonthly"></v-text-field> </v-col>
+          </v-row>
 
           <v-row> <v-col> <v-card text="Total Second Mortgage Monthly Payments"></v-card> </v-col>
-            <v-col> <v-text-field readonly variant="outlined" v-model="secondMonthly"></v-text-field> </v-col> </v-row>
+            <v-col> <v-text-field readonly variant="outlined" v-model="comVar.secondMonthly"></v-text-field> </v-col>
+          </v-row>
         </v-card>
 
         <v-card class="ma-2 pa-2">
@@ -414,9 +478,9 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
             This can differ sharply by canton - includes notary/registration fees, property transfer tax, etc.
           </v-card-text>
           <v-row> <v-col> <v-text-field clearable label="Costs as % of Purchase Price" variant="outlined"
-                v-model="initialValues.upfrontCostsInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Upfront Costs Amount" variant="outlined" v-model="upfrontCostsAmount"
-                suffix="CHF"></v-text-field> </v-col> </v-row>
+                v-model="initVar.upfrontCostsInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Upfront Costs Amount" variant="outlined"
+                v-model="comVar.upfrontCostsAmount" suffix="CHF"></v-text-field> </v-col> </v-row>
         </v-card>
 
         <v-card class="ma-2 pa-2">
@@ -433,8 +497,8 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
               0.5 and 1% of purchase price </p>
           </v-row>
           <v-row> <v-col> <v-text-field clearable label="% of Purchase Price" variant="outlined"
-                v-model="initialValues.maintInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Maintenance per Year" variant="outlined" v-model="maintAmount"
+                v-model="initVar.maintInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Maintenance per Year" variant="outlined" v-model="comVar.maintAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
 
           <v-row>
@@ -446,11 +510,11 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
             </p>
           </v-row>
           <v-row> <v-col> <v-text-field clearable label="Marginal Income Tax Rate" variant="outlined"
-                v-model="initialValues.marginalInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+                v-model="initVar.marginalInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
             <v-col> <v-text-field readonly label="Extra Income Tax Per Year" persistent-hint hint="(1st+2nd Mortgages)"
-                variant="outlined" v-model="marginalAmount" suffix="CHF"></v-text-field> </v-col>
+                variant="outlined" v-model="comVar.marginalAmount" suffix="CHF"></v-text-field> </v-col>
             <v-col> <v-text-field readonly persistent-hint hint="(1st Mortgage Only)" variant="outlined"
-                v-model="marginalOnlyFirstAmount" suffix="CHF"></v-text-field> </v-col>
+                v-model="comVar.marginalOnlyFirstAmount" suffix="CHF"></v-text-field> </v-col>
           </v-row>
 
           <v-row>
@@ -458,10 +522,10 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
               actual purchase price. TODO add an expander to hide the next rows under imputed rental value?</p>
           </v-row>
           <v-row> <v-col> <v-text-field clearable label="Eigenmietwert Value as % of Price - TODO make slider?"
-                variant="outlined" v-model="initialValues.eigenInput" suffix="%" :rules="[rules.number]"></v-text-field>
+                variant="outlined" v-model="initVar.eigenInput" suffix="%" :rules="[rules.number]"></v-text-field>
             </v-col>
-            <v-col> <v-text-field readonly label="Eigenmietwert Income per Year" variant="outlined" v-model="eigenAmount"
-                suffix="CHF"></v-text-field> </v-col> </v-row>
+            <v-col> <v-text-field readonly label="Eigenmietwert Income per Year" variant="outlined"
+                v-model="comVar.eigenAmount" suffix="CHF"></v-text-field> </v-col> </v-row>
           <!-- <v-row>  <p class="mx-4 text-medium-emphasis text-body-2">TODO move this row to Mortgage section, also figure out how to fit all label text inside text-field</p> </v-row>
           <v-row> <v-col> <v-text-field readonly label="Mortgage Interest Per Year" ></v-text-field> </v-col>
             <v-col> <v-text-field readonly label="First Mortgage" variant="outlined" v-model="firstInterest" suffix="CHF"></v-text-field> </v-col> 
@@ -473,8 +537,8 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
               percentage of the purchase price.</p>
           </v-row>
           <v-row> <v-col> <v-text-field clearable label="% of Purchase Price" variant="outlined"
-                v-model="initialValues.propTaxInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Property Tax Per Year" variant="outlined" v-model="propTaxAmount"
+                v-model="initVar.propTaxInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Property Tax Per Year" variant="outlined" v-model="comVar.propTaxAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
         </v-card>
 
@@ -495,25 +559,25 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
             </p>
           </v-row>
           <v-row> <v-col> <v-text-field clearable label="Return Rate, Per Year" variant="outlined"
-                v-model="initialValues.investInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Maintenance per Year" variant="outlined" v-model="maintAmount"
+                v-model="initVar.investInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Maintenance per Year" variant="outlined" v-model="comVar.maintAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
           <v-row>
             <p class="mx-4 text-medium-emphasis text-body-2">*Property Price Growth Rate* (TODO bold) is typically 1-1.5%
               in urban areas of Switzerland over the last 50 years</p>
           </v-row>
           <v-row> <v-col> <v-text-field clearable label="Growth Rate, Per Year" variant="outlined"
-                v-model="initialValues.houseRateInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Final Property Value" variant="outlined" v-model="maintAmount"
+                v-model="initVar.houseRateInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Final Property Value" variant="outlined" v-model="comVar.maintAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
           <v-row>
             <p class="mx-4 text-medium-emphasis text-body-2">*Rental Price Growth Rate* (TODO bold) is typically coupled
               to both property price growth rates and interest rates, but can differ over time</p>
           </v-row>
           <v-row> <v-col> <v-text-field clearable label="Growth Rate, Per Year" variant="outlined"
-                v-model="initialValues.rentRateInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+                v-model="initVar.rentRateInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
             <v-col> <v-text-field readonly label="Final Monthly Rent" hint="(In Final Year Of Analysis)" persistent-hint
-                variant="outlined" v-model="finalRent" suffix="CHF"></v-text-field> </v-col> </v-row>
+                variant="outlined" v-model="comVar.finalRent" suffix="CHF"></v-text-field> </v-col> </v-row>
         </v-card>
 
         <v-card class="ma-2 pa-2">
@@ -529,11 +593,11 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
                 class="font-weight-bold text-body-1 text-high-emphasis">Real Estate Sale Fees</span> are generally around
               4% of the sale price in most of Switzerland</p>
           </v-row>
-          <v-row> <v-col> <v-text-field clearable label="" variant="outlined" v-model="initialValues.realEstateFeeInput"
+          <v-row> <v-col> <v-text-field clearable label="" variant="outlined" v-model="initVar.realEstateFeeInput"
                 suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Sale Price" variant="outlined" v-model="salePrice"
+            <v-col> <v-text-field readonly label="Sale Price" variant="outlined" v-model="comVar.salePrice"
                 suffix="CHF"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Sale Fee" variant="outlined" v-model="realEstateFeeAmount"
+            <v-col> <v-text-field readonly label="Sale Fee" variant="outlined" v-model="comVar.realEstateFeeAmount"
                 suffix="CHF"></v-text-field> </v-col> </v-row>
           <v-row>
             <p class="mx-4 text-medium-emphasis text-body-2"><span
@@ -541,11 +605,11 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
               canton and by how long is spent living in the property - typically, the longer you stay, the less taxes are
               owed.</p>
           </v-row>
-          <v-row> <v-col> <v-text-field clearable label="Tax Rate" variant="outlined"
-                v-model="initialValues.gainsTaxInput" suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Capital Gain" variant="outlined" v-model="totalGain"
+          <v-row> <v-col> <v-text-field clearable label="Tax Rate" variant="outlined" v-model="initVar.gainsTaxInput"
+                suffix="%" :rules="[rules.number]"></v-text-field> </v-col>
+            <v-col> <v-text-field readonly label="Capital Gain" variant="outlined" v-model="comVar.totalGain"
                 suffix="CHF"></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="Tax Paid" variant="outlined" v-model="gainsTaxAmount"
+            <v-col> <v-text-field readonly label="Tax Paid" variant="outlined" v-model="comVar.gainsTaxAmount"
                 suffix="CHF"></v-text-field> </v-col>
           </v-row>
         </v-card>
@@ -560,30 +624,32 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
                 <v-card-text> TODO should split into rent vs buy columns like NYT? Also TODO color code amounts red if
                   expense, green if revenue </v-card-text>
                 <v-row> <v-col> <v-text-field readonly label="Initial Costs, Buy" variant="outlined" persistent-hint
-                      hint="(Including Down Payment)" v-model="initTotal" suffix="CHF"></v-text-field> </v-col> </v-row>
+                      hint="(Including Down Payment)" v-model="comVar.initTotal" suffix="CHF"></v-text-field> </v-col>
+                </v-row>
                 <v-row> <v-col> <v-text-field readonly label="Recurring Costs, Buy" variant="outlined"
-                      v-model="recurringTotal" suffix="CHF"></v-text-field> </v-col> </v-row>
+                      v-model="comVar.recurringTotal" suffix="CHF"></v-text-field> </v-col> </v-row>
                 <v-row> <v-col> <v-text-field readonly label="Equity (Value Owned)" variant="outlined" persistent-hint
-                      hint="(Including Down Payment)" v-model="equity" suffix="CHF"></v-text-field> </v-col> </v-row>
+                      hint="(Including Down Payment)" v-model="comVar.equity" suffix="CHF"></v-text-field> </v-col>
+                </v-row>
                 <v-row> <v-col> <v-text-field readonly label="Selling Costs" variant="outlined"
-                      v-model="sellingCostAmount" suffix="CHF"></v-text-field> </v-col> </v-row>
+                      v-model="comVar.sellingCostAmount" suffix="CHF"></v-text-field> </v-col> </v-row>
                 <v-card-text> TODO should I put a inline variable on this label like "after 'x' years"? </v-card-text>
-                <v-row> <v-col> <v-text-field readonly label="Total Net Cost" variant="outlined" v-model="netBuyAmount"
-                      suffix="CHF"></v-text-field> </v-col> </v-row>
+                <v-row> <v-col> <v-text-field readonly label="Total Net Cost" variant="outlined"
+                      v-model="comVar.netBuyAmount" suffix="CHF"></v-text-field> </v-col> </v-row>
               </v-col>
               <v-col>
                 <v-card-title class="mb-2">Renting Costs</v-card-title>
                 <v-card-text> TODO color code amounts red if expense, green if revenue </v-card-text>
-                <v-row> <v-col> <v-text-field readonly label="Total Rent Paid" variant="outlined" v-model="totalRentPaid"
-                      suffix="CHF"></v-text-field> </v-col> </v-row>
+                <v-row> <v-col> <v-text-field readonly label="Total Rent Paid" variant="outlined"
+                      v-model="comVar.totalRentPaid" suffix="CHF"></v-text-field> </v-col> </v-row>
                 <v-row> <v-col> <v-text-field readonly label="Investment Returns of Down Payment" variant="outlined"
-                      v-model="investDown" suffix="CHF"></v-text-field> </v-col> </v-row>
+                      v-model="comVar.investDown" suffix="CHF"></v-text-field> </v-col> </v-row>
                 <v-row> <v-col> <v-text-field readonly label="Investment Returns from Recurring Cost Delta"
-                      variant="outlined" v-model="investRecurDelta" suffix="CHF"></v-text-field> </v-col> </v-row>
+                      variant="outlined" v-model="comVar.investRecurDelta" suffix="CHF"></v-text-field> </v-col> </v-row>
                 <v-card-text> TODO make the net costs parallel under a subtotal line, and should I put a inline variable
                   on this label like "after 'x' years"? </v-card-text>
                 <v-row> <v-col> <v-text-field color="primary" readonly label="Total Net Cost" variant="outlined"
-                      v-model="netRentAmount" suffix="CHF"></v-text-field> </v-col> </v-row>
+                      v-model="comVar.netRentAmount" suffix="CHF"></v-text-field> </v-col> </v-row>
               </v-col>
             </v-row>
           </v-card>
@@ -593,4 +659,5 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
     </v-row>
 
 
-</v-container></template>
+  </v-container>
+</template>
