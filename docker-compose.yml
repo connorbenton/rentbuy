@@ -1,6 +1,6 @@
 version: '3.3'
 services:
-    calc-dev:
+    rentbuydev:
         build:
           context: .
           dockerfile: Dockerfile
@@ -9,6 +9,6 @@ services:
         volumes:
             - .:/app
         network_mode: cbb_server_net
-        container_name: calc-dev
+        container_name: rentbuydev
         expose:
             - '5173'
