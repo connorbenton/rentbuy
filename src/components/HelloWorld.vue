@@ -6,7 +6,7 @@ import { reverse } from 'dns';
 import { format } from 'path';
 import { json } from 'stream/consumers';
 import { exportAllDeclaration } from '@babel/types';
-
+import dJSON from 'dirty-json';
 
 // Rules for evaluating form input
 const rules = {
@@ -58,8 +58,29 @@ async function hash() {
   allData.comVar = comVar;
   allData.initVar = initVar;
 
-  let hashVal = cyrb53(JSON.stringify(allData));
+  let strAllData = JSON.stringify(allData);
+  let strCom = btoa(JSON.stringify(comVar));
+  let strRaw = btoa(JSON.stringify(rawVar));
+  let strInit = btoa(JSON.stringify(initVar));
+
+  let hashVal = cyrb53(strAllData);
   let url = 'https://o3dpyfo8of.execute-api.eu-central-1.amazonaws.com/prod';
+
+  console.log(strCom)
+  let stringifiedBody = JSON.stringify({
+    dataUUID: hashVal,
+    // allData: strAllData
+    comVar: strCom,
+    rawVar: strRaw,
+    initVar: strInit
+    //  comVar: (comVar),
+    // rawVar: (rawVar),
+    // initVar: (initVar)   
+  })
+
+  console.log(stringifiedBody);
+  stringifiedBody = stringifiedBody.replace(/(\r\n|\n|\r)/gm, "");
+  console.log(stringifiedBody);
 
   let response = await fetch(url, {
     method: 'POST',
@@ -67,12 +88,7 @@ async function hash() {
       'Accept': 'application/json',
       'Content-Type': 'application/json;charset=UTF-8'
     },
-    body: JSON.stringify({
-      dataUUID: hashVal,
-      comVar: comVar,
-      rawVar: rawVar,
-      initVar: initVar
-    })
+    body: stringifiedBody
   });
   let responseOK = response && response.ok;
   if (responseOK) {
@@ -83,8 +99,67 @@ async function hash() {
   return cyrb53(JSON.stringify(allData));
 }
 
+// const dynamoData = ref([])
+
+const GetDynamoData = async () => {
+  var link = document.location.href.split('/');
+  var id = link[3];
+  if (id === "") return;
+  let url = 'https://o3dpyfo8of.execute-api.eu-central-1.amazonaws.com/prod/' + id;
+
+  let response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json;charset=UTF-8'
+    }
+  });
+  let responseOK = response && response.ok;
+  if (responseOK) {
+    let data = await response.json();
+    console.log(data);
+    if (data.dataHashes.length > 0) {
+      // console.log(data.dataHashes[0].rawVar);
+      // console.log("before")
+      // // console.log(rawVar);
+      // // console.log(comVar);
+      // console.log(initVar);
+      var i = JSON.parse(atob((data.dataHashes[0].initVar)));
+      var r = JSON.parse(atob((data.dataHashes[0].rawVar)));
+      var c = JSON.parse(atob((data.dataHashes[0].comVar)));
+      // console.log(i)
+      // console.log(i.priceInput);
+      // initVar.priceInput = i.priceInput;
+
+      Object.keys(initVar).forEach((key:string) => {
+        initVar[key as keyof typeof initVar] = i[key];
+      });
+      Object.keys(rawVar).forEach((key:string) => {
+        rawVar[key as keyof typeof rawVar] = r[key];
+      });
+      // Object.keys(comVar).forEach((key:string) => {
+      //   comVar[key as keyof typeof comVar] = c[key];
+      // });
+
+      // comVar = JSON.parse(atob((data.dataHashes[0].comVar)));
+      // initVar = JSON.parse(atob((data.dataHashes[0].initVar)));
+    }
+
+    // do something with data
+
+    // console.log("after")
+    // console.log(rawVar);
+    // console.log(comVar);
+    // console.log(initVar);
+    // console.log(trawVar);
+  }
+}
+
+GetDynamoData()
+// console.log(rawVar);
+
 //Raw variables for computations
-const rawVar = reactive({
+var rawVar = reactive({
   priceRaw: 0,
   rentRaw: 0,
   downTotalRaw: 0,
@@ -135,7 +210,7 @@ async function validate() {
 }
 // Computed variables 
 
-const comVar = reactive({
+var comVar = reactive({
 
   priceDisplay: computed(() => {
     rawVar.priceRaw = parseInt(initVar.priceInput.toString().replace(/,/g, ''), 10);
@@ -334,7 +409,7 @@ const comVar = reactive({
 })
 
 
-const initVar = reactive({
+var initVar = reactive({
   priceInput: 1000000,
   rentInput: 3000,
   downOwnInput: 10,
@@ -354,6 +429,7 @@ const initVar = reactive({
   gainsTaxInput: 25,
   realEstateFeeInput: 4
 })
+
 
 
 
