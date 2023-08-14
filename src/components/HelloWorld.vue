@@ -93,13 +93,18 @@ async function hash() {
   let responseOK = response && response.ok;
   if (responseOK) {
     let data = await response.json();
+    history.pushState({}, "", document.location.href + hashVal)
     console.log(data);
     // do something with data
+  }
+  else {
+      //TODO show a error box at top saying that there was a problem with saving data
   }
   return cyrb53(JSON.stringify(allData));
 }
 
 // const dynamoData = ref([])
+const isFetching = reactive({ value: false })
 
 const GetDynamoData = async () => {
   var link = document.location.href.split('/');
@@ -107,6 +112,9 @@ const GetDynamoData = async () => {
   if (id === "") return;
   let url = 'https://o3dpyfo8of.execute-api.eu-central-1.amazonaws.com/prod/' + id;
 
+  // console.log(isFetching.value)
+  isFetching.value = true;
+  // console.log(isFetching.value)
   let response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -153,6 +161,11 @@ const GetDynamoData = async () => {
     // console.log(initVar);
     // console.log(trawVar);
   }
+  else {
+    // TODO show a box at the top saying 'error loading data' and use defaults
+  }
+    isFetching.value = false;
+  // console.log(isFetching.value)
 }
 
 GetDynamoData()
@@ -439,6 +452,7 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
 </script>
 
 <template>
+  <v-div v-if="!isFetching.value">
   <v-container>
     <v-row><v-btn @click="hash">Calculate Hash</v-btn> </v-row>
     <v-row>
@@ -736,4 +750,6 @@ const currOptions = { mask: ["#,###,###,###", "###,###,###", "##,###,###", "#,##
 
 
   </v-container>
+  </v-div>
+
 </template>
