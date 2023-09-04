@@ -1,4 +1,4 @@
-version: '3.3'
+version: '3.7'
 services:
     rentbuydev:
         build:
@@ -10,5 +10,10 @@ services:
             - .:/app
         network_mode: cbb_server_net
         container_name: rentbuydev
+        deploy:
+          resources:
+            limits:
+              cpus: "2"
+              memory: "2g"
         expose:
             - '5173'
