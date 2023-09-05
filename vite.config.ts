@@ -18,6 +18,7 @@ export default defineConfig({
     }),
   ],
   define: { 'process.env': {} },
+  base: './',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -34,6 +35,6 @@ export default defineConfig({
   },
   server: {
       host: true,
-      port: 5173
+      port: 4173
   },
 })

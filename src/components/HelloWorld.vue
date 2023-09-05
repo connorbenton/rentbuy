@@ -3,6 +3,7 @@ import { ref, watch, reactive, computed, nextTick } from 'vue'
 import { resourceLimits } from 'worker_threads';
 import { vMaska } from 'maska'
 import { useDisplay } from 'vuetify';
+import { useStorage } from '@vueuse/core'
 import { reverse } from 'dns';
 import { format } from 'path';
 import { json } from 'stream/consumers';
@@ -53,6 +54,14 @@ const cyrb53 = (str: string, seed = 0) => {
   return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 };
 
+var currentHashVal = window.location.pathname.replace(/\//g, '');
+
+const saveStates = reactive({
+  list: useStorage("list", [] as any[]),
+  notificationsCount: 0,
+});
+
+
 async function hash() {
   var allData = {
     rawVar: {},
@@ -69,23 +78,17 @@ async function hash() {
   let strInit = btoa(JSON.stringify(initVar));
 
   let hashVal = cyrb53(strAllData);
+  if ((hashVal).toString() == currentHashVal) { return; }
   let url = 'https://o3dpyfo8of.execute-api.eu-central-1.amazonaws.com/prod';
 
-  console.log(strCom)
   let stringifiedBody = JSON.stringify({
     dataUUID: hashVal,
-    // allData: strAllData
     comVar: strCom,
     rawVar: strRaw,
     initVar: strInit
-    //  comVar: (comVar),
-    // rawVar: (rawVar),
-    // initVar: (initVar)   
   })
 
-  console.log(stringifiedBody);
   stringifiedBody = stringifiedBody.replace(/(\r\n|\n|\r)/gm, "");
-  console.log(stringifiedBody);
 
   let response = await fetch(url, {
     method: 'POST',
@@ -98,18 +101,50 @@ async function hash() {
   let responseOK = response && response.ok;
   if (responseOK) {
     let data = await response.json();
-    history.pushState({}, "", document.location.href + hashVal)
-    console.log(data);
+    history.pushState({}, "", document.location.origin + "/" + hashVal)
+    currentHashVal = hashVal.toString();
+    // console.log(data);
+    var rawToStore = Object.assign({}, rawVar);
+    var initToStore = Object.assign({}, initVar);
+    const saveStateNew = {
+      id: hashVal.toString(),
+      text1: initVar.priceInput.toLocaleString(),
+      text2: initVar.rentInput.toLocaleString(),
+      rawVar: rawToStore,
+      initVar: initToStore,
+    }
+
+    saveStates.list.push(saveStateNew);
+    blinkList();
     // do something with data
   }
   else {
-    //TODO show a error box at top saying that there was a problem with saving data
+    //TODO show a error box at top saying that there was a problem with saving data?
   }
   return cyrb53(JSON.stringify(allData));
 }
 
+function blinkList() {
+    saveListBlink.value = 'elevated'
+  setTimeout(()=>{
+    saveListBlink.value = 'outlined'
+  },350);
+}
 
-// const dynamoData = ref([])
+window.onpopstate = function () {
+  GetDynamoData();
+}
+
+const saveListBlink = reactive({ value: 'outlined' });
+
+// watch(saveStates, (newVal, oldVal) => {
+//   newVal.list.forEach(function (state) {
+//     console.log("for " + state.text + " rent raw:");
+//     console.log(state.rawVar.rentRaw);
+//   })
+// })
+
+
 const isFetching = reactive({ value: false });
 
 const GetDynamoData = async () => {
@@ -118,9 +153,8 @@ const GetDynamoData = async () => {
   if (id === "") return;
   let url = 'https://o3dpyfo8of.execute-api.eu-central-1.amazonaws.com/prod/' + id;
 
-  // console.log(isFetching.value)
   isFetching.value = true;
-  // console.log(isFetching.value)
+
   let response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -131,19 +165,12 @@ const GetDynamoData = async () => {
   let responseOK = response && response.ok;
   if (responseOK) {
     let data = await response.json();
-    console.log(data);
+    // console.log(data);
     if (data.dataHashes.length > 0) {
-      // console.log(data.dataHashes[0].rawVar);
-      // console.log("before")
-      // // console.log(rawVar);
-      // // console.log(comVar);
-      // console.log(initVar);
+
       var i = JSON.parse(atob((data.dataHashes[0].initVar)));
       var r = JSON.parse(atob((data.dataHashes[0].rawVar)));
       var c = JSON.parse(atob((data.dataHashes[0].comVar)));
-      // console.log(i)
-      // console.log(i.priceInput);
-      // initVar.priceInput = i.priceInput;
 
       Object.keys(initVar).forEach((key: string) => {
         initVar[key as keyof typeof initVar] = i[key];
@@ -155,17 +182,21 @@ const GetDynamoData = async () => {
       //   comVar[key as keyof typeof comVar] = c[key];
       // });
 
-      // comVar = JSON.parse(atob((data.dataHashes[0].comVar)));
-      // initVar = JSON.parse(atob((data.dataHashes[0].initVar)));
     }
 
-    // do something with data
+    var rawToStore = Object.assign({}, rawVar);
+    var initToStore = Object.assign({}, initVar);
+    const saveStateNew = {
+      id: id.toString(),
+      text1: initVar.priceInput.toLocaleString(),
+      text2: initVar.rentInput.toLocaleString(),
+      rawVar: rawToStore,
+      initVar: initToStore,
+    }
+    const m = saveStates.list.findIndex(_element => _element.id === id);
+    if (m > -1) { } // (2)
+    else { saveStates.list.push(saveStateNew); blinkList();}
 
-    // console.log("after")
-    // console.log(rawVar);
-    // console.log(comVar);
-    // console.log(initVar);
-    // console.log(trawVar);
   }
   else {
     // TODO show a box at the top saying 'error loading data' and use defaults
@@ -175,7 +206,6 @@ const GetDynamoData = async () => {
 }
 
 GetDynamoData()
-// console.log(rawVar);
 
 //Raw variables for computations
 var rawVar = reactive({
@@ -668,8 +698,7 @@ var comVar = reactive({
   })
 })
 
-
-var initVar = reactive({
+const initVarFix = {
   priceInput: 1000000,
   rentInput: 3000,
   downOwnInput: 10,
@@ -688,9 +717,16 @@ var initVar = reactive({
   secondPremiumInput: 1,
   gainsTaxInput: 25,
   realEstateFeeInput: 4
-})
+};
+
+var initVar = reactive({ ...initVarFix });
 
 
+
+function reset() {
+  Object.assign(initVar, initVarFix);
+  history.pushState({}, "", document.location.origin);
+}
 
 const showMortgage = reactive({ value: false });
 const showAnnual = reactive({ value: false });
@@ -708,6 +744,41 @@ const showDown = reactive({
   })
 });
 
+function loadState(idOfClicked: string) {
+
+  let foundState = saveStates.list.find(x => x.id === idOfClicked);
+  if (!foundState) { return; }
+  Object.assign(initVar, foundState.initVar);
+  // Object.assign(comVar, foundState.comVar);
+  Object.assign(rawVar, foundState.rawVar);
+  history.pushState({}, "", document.location.origin + "/" + foundState.id);
+
+  // console.log("save states: ");
+  // console.log(saveStates.list);
+}
+
+function removeState(idOfClicked: string) {
+
+  var removeIndex = saveStates.list.map(item => item.id).indexOf(idOfClicked);
+  ~removeIndex && saveStates.list.splice(removeIndex, 1);
+
+}
+
+var floor=Math.floor, abs=Math.abs, log=Math.log, round=Math.round, min=Math.min;
+var abbrev = ['K', 'M', 'B']; // abbreviations in steps of 1000x; extensible if need to edit
+
+function rnd(n:any, precision:any) {
+    var prec = 10**precision;
+    return round(n*prec)/prec;
+}
+
+function formatNum(n:any) {
+    n = parseFloat(n.replace(/,/g, ''));
+    var base = floor(log(abs(n))/log(1000));
+    var suffix = abbrev[min(abbrev.length-1, base-1)];
+    base = abbrev.indexOf(suffix) + 1;
+    return suffix ? rnd(n/1000**base,2)+suffix : ''+n;
+}
 
 const currOptions =
 // // Not using the maska example money format since it also fails the '1,000,000 -> 100,000 -> 1,200,000' second number switch test
@@ -733,8 +804,61 @@ const currOptions =
 <template>
   <v-div v-if="!isFetching.value">
     <v-container>
-      <!-- <v-row><v-btn @click="hash">Calculate Hash</v-btn> </v-row> -->
-      <v-row> <v-col align="center" class="ma-0 pa-0"><div class="text-h5 ma-4"> Rent vs. Buy, Switzerland </div></v-col></v-row>
+      <!-- <v-app-bar scroll-behavior="hide"> -->
+      <v-row>
+        <v-col class="mx-2">
+      <v-toolbar class="ma-0" scroll-behavior="hide" color="grey-darken-4">
+        <v-btn icon="mdi-content-save" @click="hash"></v-btn>
+
+        <v-menu :close-on-content-click="false">
+      <template v-slot:activator="{ props }">
+        <v-btn
+          color="secondary"
+          :variant="saveListBlink.value"
+          v-bind="props"
+          class="mx-2"
+        >
+          Saved Analyses
+        </v-btn>
+      </template>
+      <v-list>
+        <v-list-item v-if="saveStates.list.length < 1">
+          <v-row class="px-2 ma-0">
+                <v-card-text class="align-self-center text-caption pa-0">No Saved Analyses</v-card-text>
+          </v-row>
+         </v-list-item>
+        <v-list-item
+          v-for="saveState in saveStates.list"
+          :key="saveState.id"
+        >
+        <v-card variant="outlined" bg-color="blue" class="pa-0 mx-2" @click="loadState(saveState.id)">
+          <v-row class="px-2 ma-0">
+                <v-card-text class="align-self-center text-caption pa-0"> {{ saveStates.list.indexOf(saveState) + 1}} : {{ formatNum(saveState.text1) }} Buy / {{ formatNum(saveState.text2) }} Rent</v-card-text>
+              <v-btn size="x-small" class="pa-0 ml-1 align-self-center" icon="mdi-close" @click="removeState(saveState.id)"> </v-btn>
+          </v-row>
+        </v-card>
+          <!-- <v-list-item-title>{{ saveState.text1 }}</v-list-item-title> -->
+        </v-list-item>
+      </v-list>
+    </v-menu> 
+        <!-- <v-card variant="outlined" bg-color="blue" class="pa-0 mx-2" :key="saveState.id" v-for="saveState in saveStates.list"
+          @click="loadState(saveState.id)">
+          <v-row class="px-2 ma-0">
+                <v-card-text class="align-self-center text-caption pa-0">{{ formatNum(saveState.text1) }} Buy / {{ formatNum(saveState.text2) }} Rent</v-card-text>
+              <v-btn size="x-small" class="pa-0 ml-1 align-self-center" icon="mdi-close" @click="removeState(saveState.id)"> </v-btn>
+          </v-row>
+        </v-card> -->
+
+        <v-spacer></v-spacer>
+        <v-btn class="mr-4" variant="outlined" @click="reset">Reset</v-btn>
+      </v-toolbar>
+    </v-col>
+    </v-row>
+      <!-- </v-app-bar> -->
+
+      <v-row> <v-col align="center" class="ma-0 pa-0">
+          <div class="text-h5 ma-4"> Rent vs. Buy, Switzerland </div>
+        </v-col></v-row>
       <v-row>
         <v-col>
           <v-card class="mx-2 px-4">
@@ -971,11 +1095,6 @@ const currOptions =
                   <v-col cols="12" sm="4"> <v-text-field readonly label="Eigenmietwert 'Income'" variant="outlined"
                       persistent-hint hint="(per year)" v-model="comVar.eigenAmount" suffix="CHF"></v-text-field> </v-col>
                 </v-row>
-                <!-- <v-row>  <p class="mx-4 text-medium-emphasis text-body-2">TODO move this row to Mortgage section, also figure out how to fit all label text inside text-field</p> </v-row>
-          <v-row> <v-col> <v-text-field readonly label="Mortgage Interest Per Year" ></v-text-field> </v-col>
-            <v-col> <v-text-field readonly label="First Mortgage" variant="outlined" v-model="firstInterest" suffix="CHF"></v-text-field> </v-col> 
-            <v-col> <v-text-field readonly label="Second Mortgage" variant="outlined" v-model="secondInterest" suffix="CHF"></v-text-field> </v-col> 
-          </v-row> -->
 
                 <v-row>
                   <p class="mx-4 text-medium-emphasis text-caption">
@@ -1067,10 +1186,6 @@ const currOptions =
             <v-expand-transition>
               <div v-show="showTaxesFees.value">
                 <v-row class="mt-2">
-                  <!-- <p class="ma-4 text-high-emphasis text-body-2"> These values can strongly affect outcomes. All additional
-                money saved via differences in initial or recurring costs are assumed to be invested and growing
-                at the rate set below. TODO make all of these columns?
-              </p> -->
                 </v-row>
                 <v-row>
                   <p class="mx-4 my-2 text-medium-emphasis text-caption"><span
@@ -1108,9 +1223,7 @@ const currOptions =
           </v-card>
 
         </v-col>
-        <!-- <v-col cols="3" no-gutters>
-          <div class="mr-2" style="position: fixed; width: 100px top: 100px">
-            <v-card class="ma-2 pa-2"> -->
+
         <div v-if=mdAndUp>
           <v-navigation-drawer permanent :width="md ? 400 : 500" class="pa-4" location="right">
             <v-row>
@@ -1123,8 +1236,6 @@ const currOptions =
                     <p class="mx-4 text-high-emphasis text-h5">Renting Costs</p>
                   </v-col>
                 </v-row>
-                <!-- <v-card-text> TODO should split into rent vs buy columns like NYT? Also TODO color code amounts red if
-                    expense, green if revenue </v-card-text> -->
                 <v-row> <v-col> <v-text-field base-color="red-accent-1" readonly label="Initial Costs, Buy"
                       variant="outlined" persistent-hint hint="(Including Down Payment)" v-model="comVar.initTotal"
                       suffix="CHF"></v-text-field> </v-col>
@@ -1190,102 +1301,101 @@ const currOptions =
         </div>
 
         <div v-if=smAndDown>
-          <v-navigation-drawer permanent class="pa-4" :width=" showMiniDrawer.value ? 250 : 80" touchless location="bottom">
+          <v-navigation-drawer permanent class="py-2 pl-4 pr-4" :width="showMiniDrawer.value ? 250 : 75" touchless
+            location="bottom">
             <v-row>
               <v-col>
-                <v-row> <v-col class="mt-4">
-                    <v-card-text cols="9" class="py-0 text-high-emphasis text-body-2">Net Costs after
+                <v-row class="align-self-start"> <v-col class="ma-0 mt-1 px-2 align-self-center">
+                    <v-card-text cols="10" class="py-0 text-high-emphasis text-body-2 align-self-center">Net Costs after
                       {{ comVar.yearsTotalCom }} Years</v-card-text>
                   </v-col>
-                  <v-col cols="3" align="center">
-                    <v-btn :icon="showMiniDrawer.value ? 'mdi-minus-circle' : 'mdi-plus-circle'"
+                  <v-col cols="2" class="pa-2 mt-1 align-self-center">
+                    <v-btn class="align-self-center" :icon="showMiniDrawer.value ? 'mdi-minus-circle' : 'mdi-plus-circle'"
                       @click="showMiniDrawer.value = !showMiniDrawer.value"></v-btn>
                   </v-col>
                 </v-row>
 
-              <v-expand-transition>
+                <v-expand-transition>
 
-                <div v-show="showMiniDrawer.value">
+                  <div v-show="showMiniDrawer.value">
 
-                <v-row class="mt-2"> <v-col> <v-text-field :base-color="comVar.netBuySign" readonly label="Net Cost, Buying"
-                      variant="outlined" v-model="comVar.netBuyAmount" suffix="CHF"></v-text-field> </v-col>
+                    <v-row class="mt-2"> <v-col> <v-text-field :base-color="comVar.netBuySign" readonly
+                          label="Net Cost, Buying" variant="outlined" v-model="comVar.netBuyAmount"
+                          suffix="CHF"></v-text-field> </v-col>
 
-                  <v-col> <v-text-field :base-color="comVar.netRentSign" readonly label="Net Cost, Renting"
-                      variant="outlined" v-model="comVar.netRentAmount" suffix="CHF"></v-text-field> </v-col>
-                </v-row>
+                      <v-col> <v-text-field :base-color="comVar.netRentSign" readonly label="Net Cost, Renting"
+                          variant="outlined" v-model="comVar.netRentAmount" suffix="CHF"></v-text-field> </v-col>
+                    </v-row>
 
 
-                <v-card-text class="mb-2 mt-0 pa-0 pb-2 text-medium-emphasis text-caption">A simple way to visualize this number is: if
-                  you started with 10,000,000 CHF in your account on Day 0, and the account only had inflows and
-                  outflows corresponding to the numbers here (i.e. no salary, no expenses on food, travel, etc.), how
-                  much less (or more) would you have in your account after {{ comVar.yearsTotalCom }} years?
-                </v-card-text>
-
-                <v-divider :thickness="4" class="border-opacity-50 mb-2"> </v-divider>
-                <v-row>
-                  <v-col>
-                    <p class="mx-4 text-high-emphasis text-subtitle-1">Buying Costs</p>
-                  </v-col>
-                  <v-col>
-                    <p class="mx-4 text-high-emphasis text-subtitle-1">Renting Costs</p>
-                  </v-col>
-                </v-row>
-                <!-- <v-card-text> TODO should split into rent vs buy columns like NYT? Also TODO color code amounts red if
-                    expense, green if revenue </v-card-text> -->
-                <v-row> <v-col> <v-text-field base-color="red-accent-1" readonly label="Initial Costs, Buy"
-                      variant="outlined" persistent-hint hint="(Including Down Payment)" v-model="comVar.initTotal"
-                      suffix="CHF"></v-text-field> </v-col>
-                  <v-col> <v-text-field base-color="red-accent-1" readonly label="Total Rent Paid" variant="outlined"
-                      v-model="comVar.totalRentPaid" suffix="CHF"></v-text-field> </v-col>
-                </v-row>
-                <v-row> <v-col> <v-text-field base-color="red-accent-1" readonly label="Recurring Costs, Buy"
-                      variant="outlined" v-model="comVar.recurringTotal" suffix="CHF"></v-text-field> </v-col>
-                  <v-col> <v-text-field :base-color="comVar.investDownSign" readonly label="Investment Returns"
-                      persistent-hint hint="From Initial Costs" variant="outlined" v-model="comVar.investDown"
-                      suffix="CHF"></v-text-field> </v-col>
-                </v-row>
-                <v-row> <v-col> <v-text-field base-color="green-accent-2" readonly label="Equity (Value Owned)"
-                      variant="outlined" persistent-hint hint="(Down + Gains)" v-model="comVar.equity"
-                      suffix="CHF"></v-text-field> </v-col>
-                  <v-col> <v-text-field :base-color="comVar.investRecurSign" readonly label="Investment Returns"
-                      persistent-hint hint="From Recurring Costs Delta" variant="outlined"
-                      v-model="comVar.investRecurDelta" suffix="CHF"></v-text-field> </v-col>
-                </v-row>
-                <v-row> <v-col> <v-text-field base-color="red-accent-1" readonly label="Selling Costs" variant="outlined"
-                      v-model="comVar.sellingCostAmount" suffix="CHF"></v-text-field> </v-col>
-                  <v-col></v-col>
-
-                </v-row>
-
-                <v-row> <v-col>
-
-                    <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
-                      <span class="text-high-emphasis"> {{ comVar.priceDisplay }} CHF</span>
-                      purchase with these assumptions, if you could find an equivalent rental cheaper than approx.
-                      <br>
-                      <span class="text-high-emphasis"> {{ comVar.equivRent }} CHF</span>
-                      <span class="text-medium-emphasis"> it would make more sense to rent.</span>
+                    <v-card-text class="mb-2 mt-0 pa-0 pb-2 text-medium-emphasis text-caption">A simple way to visualize
+                      this number is: if
+                      you started with 10,000,000 CHF in your account on Day 0, and the account only had inflows and
+                      outflows corresponding to the numbers here (i.e. no salary, no expenses on food, travel, etc.), how
+                      much less (or more) would you have in your account after {{ comVar.yearsTotalCom }} years?
                     </v-card-text>
-                  </v-col>
-                  <v-col>
-                    <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
-                      <span class="text-high-emphasis"> {{ initVar.rentInput }} CHF per month</span>
-                      rental with these assumptions, if you could find an equivalent purchase cheaper than approx.
-                      <br>
-                      <span class="text-high-emphasis"> {{ comVar.equivPurchase }} CHF</span>
-                      <span class="text-medium-emphasis"> it would make more sense to purchase.</span>
-                    </v-card-text>
-                  </v-col>
-                </v-row>
-                </div></v-expand-transition>
+
+                    <v-divider :thickness="4" class="border-opacity-50 mb-2"> </v-divider>
+                    <v-row>
+                      <v-col>
+                        <p class="mx-4 text-high-emphasis text-subtitle-1">Buying Costs</p>
+                      </v-col>
+                      <v-col>
+                        <p class="mx-4 text-high-emphasis text-subtitle-1">Renting Costs</p>
+                      </v-col>
+                    </v-row>
+                    <v-row> <v-col> <v-text-field base-color="red-accent-1" readonly label="Initial Costs, Buy"
+                          variant="outlined" persistent-hint hint="(Including Down Payment)" v-model="comVar.initTotal"
+                          suffix="CHF"></v-text-field> </v-col>
+                      <v-col> <v-text-field base-color="red-accent-1" readonly label="Total Rent Paid" variant="outlined"
+                          v-model="comVar.totalRentPaid" suffix="CHF"></v-text-field> </v-col>
+                    </v-row>
+                    <v-row> <v-col> <v-text-field base-color="red-accent-1" readonly label="Recurring Costs, Buy"
+                          variant="outlined" v-model="comVar.recurringTotal" suffix="CHF"></v-text-field> </v-col>
+                      <v-col> <v-text-field :base-color="comVar.investDownSign" readonly label="Investment Returns"
+                          persistent-hint hint="From Initial Costs" variant="outlined" v-model="comVar.investDown"
+                          suffix="CHF"></v-text-field> </v-col>
+                    </v-row>
+                    <v-row> <v-col> <v-text-field base-color="green-accent-2" readonly label="Equity (Value Owned)"
+                          variant="outlined" persistent-hint hint="(Down + Gains)" v-model="comVar.equity"
+                          suffix="CHF"></v-text-field> </v-col>
+                      <v-col> <v-text-field :base-color="comVar.investRecurSign" readonly label="Investment Returns"
+                          persistent-hint hint="From Recurring Costs Delta" variant="outlined"
+                          v-model="comVar.investRecurDelta" suffix="CHF"></v-text-field> </v-col>
+                    </v-row>
+                    <v-row> <v-col> <v-text-field base-color="red-accent-1" readonly label="Selling Costs"
+                          variant="outlined" v-model="comVar.sellingCostAmount" suffix="CHF"></v-text-field> </v-col>
+                      <v-col></v-col>
+
+                    </v-row>
+
+                    <v-row> <v-col>
+
+                        <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
+                          <span class="text-high-emphasis"> {{ comVar.priceDisplay }} CHF</span>
+                          purchase with these assumptions, if you could find an equivalent rental cheaper than approx.
+                          <br>
+                          <span class="text-high-emphasis"> {{ comVar.equivRent }} CHF</span>
+                          <span class="text-medium-emphasis"> it would make more sense to rent.</span>
+                        </v-card-text>
+                      </v-col>
+                      <v-col>
+                        <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
+                          <span class="text-high-emphasis"> {{ initVar.rentInput }} CHF per month</span>
+                          rental with these assumptions, if you could find an equivalent purchase cheaper than approx.
+                          <br>
+                          <span class="text-high-emphasis"> {{ comVar.equivPurchase }} CHF</span>
+                          <span class="text-medium-emphasis"> it would make more sense to purchase.</span>
+                        </v-card-text>
+                      </v-col>
+                    </v-row>
+                  </div>
+                </v-expand-transition>
 
               </v-col>
             </v-row>
           </v-navigation-drawer>
         </div>
-        <!-- </v-card>
-          </div>
-        </v-col> -->
 
       </v-row>
 

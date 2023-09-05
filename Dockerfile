@@ -16,7 +16,7 @@ RUN npm install
 
 # ENV PATH /usr/local/lib/python3.7/site-packages:$PATH
 
-# CMD npm run env -- vitepress dev --host 0.0.0.0 --port 5173
+# CMD npm run env -- vitepress dev --host 0.0.0.0 --port 4173
 
 COPY ./start-dev.sh /
 RUN chmod +x /start-dev.sh

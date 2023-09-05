@@ -16,4 +16,4 @@ services:
               cpus: "2"
               memory: "2g"
         expose:
-            - '5173'
+            - '4173'
