@@ -125,9 +125,9 @@ async function hash() {
 }
 
 function blinkList() {
-    saveListBlink.value = 'elevated'
+    saveListBlink.value = "outlined";
   setTimeout(()=>{
-    saveListBlink.value = 'outlined'
+    saveListBlink.value = "elevated";
   },350);
 }
 
@@ -135,7 +135,7 @@ window.onpopstate = function () {
   GetDynamoData();
 }
 
-const saveListBlink = reactive({ value: 'outlined' });
+const saveListBlink = reactive({ value: <"outlined" | "elevated"> "outlined" });
 
 // watch(saveStates, (newVal, oldVal) => {
 //   newVal.list.forEach(function (state) {
