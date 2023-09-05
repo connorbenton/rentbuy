@@ -125,9 +125,9 @@ async function hash() {
 }
 
 function blinkList() {
-    saveListBlink.value = "outlined";
-  setTimeout(()=>{
     saveListBlink.value = "elevated";
+  setTimeout(()=>{
+    saveListBlink.value = "outlined";
   },350);
 }
 

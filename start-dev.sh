@@ -22,5 +22,5 @@
 #   export $newval
 # done < .env
 
-(cd /app; npm run dev)
-# (cd /app; npm run build; npm run preview)
+# (cd /app; npm run dev)
+(cd /app; npm run build; npm run preview)
