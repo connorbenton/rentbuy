@@ -101,7 +101,7 @@ async function hash() {
   let responseOK = response && response.ok;
   if (responseOK) {
     let data = await response.json();
-    history.pushState({}, "", document.location.origin + "/" + hashVal)
+    history.pushState({}, "", document.location.origin + "/?id=" + hashVal)
     currentHashVal = hashVal.toString();
     // console.log(data);
     var rawToStore = Object.assign({}, rawVar);
@@ -148,9 +148,9 @@ const saveListBlink = reactive({ value: <"outlined" | "elevated"> "outlined" });
 const isFetching = reactive({ value: false });
 
 const GetDynamoData = async () => {
-  var link = document.location.href.split('/');
-  var id = link[3];
-  if (id === "") return;
+  var link = document.location.href.split('/?id=');
+  var id = link[1];
+  if (id === "" || id === undefined) return;
   let url = 'https://o3dpyfo8of.execute-api.eu-central-1.amazonaws.com/prod/' + id;
 
   isFetching.value = true;
@@ -392,7 +392,8 @@ var comVar = reactive({
     return rawVar.secondInterestRaw.toLocaleString();
   }),
   secondLengthCom: computed(() => {
-    return Number(initVar.secondMortgageAmortizationLength);
+    if (initVar.secondMortgageAmortizationLength < 1) { return 1; }
+    else { return Number(initVar.secondMortgageAmortizationLength); }
   }),
   secondAmortisation: computed(() => {
     rawVar.secondAmortisationRaw = (rawVar.initialSecondRaw / comVar.secondLengthCom);
@@ -453,6 +454,12 @@ var comVar = reactive({
     if (rawVar.investRecurDeltaRaw >= 0) { return "green-accent-2" } else return "red-accent-1"
   }),
 
+  netBuyLabel: computed(() => {
+    if (rawVar.netBuyRaw <= 0) { return "Net Profit, Buy" } else return "Net Cost, Buy"
+  }),
+  netRentLabel: computed(() => {
+    if (rawVar.netRentRaw <= 0) { return "Net Profit, Rent" } else return "Net Cost, Rent"
+  }),
   netBuySign: computed(() => {
     if (rawVar.netBuyRaw <= 0) { return "green-accent-2" } else return "red-accent-1"
   }),
@@ -535,7 +542,7 @@ var comVar = reactive({
     return Math.round(rawVar.recurringTotalRaw).toLocaleString();
   }),
   equity: computed(() => {
-    rawVar.equityRaw = (rawVar.totalGainRaw + rawVar.downTotalRaw + Math.min(initVar.secondMortgageAmortizationLength, comVar.yearsTotalCom) * rawVar.secondAmortisationRaw);
+    rawVar.equityRaw = (rawVar.totalGainRaw + rawVar.downTotalRaw + Math.min(comVar.secondLengthCom, comVar.yearsTotalCom) * rawVar.secondAmortisationRaw);
     return Math.round(rawVar.equityRaw).toLocaleString();
   }),
   sellingCostAmount: computed(() => {
@@ -544,11 +551,13 @@ var comVar = reactive({
   }),
   netBuyAmount: computed(() => {
     rawVar.netBuyRaw = (rawVar.initTotalRaw + rawVar.recurringTotalRaw - rawVar.equityRaw + rawVar.sellingCostRaw);
-    return Math.round(rawVar.netBuyRaw).toLocaleString();
+    if (rawVar.netBuyRaw < 0) {return "+" + Math.round(Math.abs(rawVar.netBuyRaw)).toLocaleString();}
+    else {return "-" + Math.round(Math.abs(rawVar.netBuyRaw)).toLocaleString();}
   }),
   netRentAmount: computed(() => {
     rawVar.netRentRaw = (rawVar.totalRentPaidRaw - rawVar.investDownRaw - rawVar.investRecurDeltaRaw);
-    return Math.round(rawVar.netRentRaw).toLocaleString();
+    if (rawVar.netRentRaw < 0) {return "+" + Math.round(Math.abs(rawVar.netRentRaw)).toLocaleString();}
+    else {return "-" + Math.round(Math.abs(rawVar.netRentRaw)).toLocaleString();}
   }),
   totalInvestAmount: computed(() => {
     return Math.round(rawVar.investDownRaw + rawVar.investRecurDeltaRaw).toLocaleString();
@@ -658,7 +667,7 @@ var comVar = reactive({
 
       var salePriceRaw = Math.round((price * ((comVar.houseRateCom / 100 + 1) ** comVar.yearsTotalCom)));
       var totalGainRaw = salePriceRaw - price;
-      var equityRaw = (totalGainRaw + downTotalRaw + Math.min(initVar.secondMortgageAmortizationLength, comVar.yearsTotalCom) * secondAmortisationRaw);
+      var equityRaw = (totalGainRaw + downTotalRaw + Math.min(comVar.secondLengthCom, comVar.yearsTotalCom) * secondAmortisationRaw);
 
       var sellingCostRaw = totalGainRaw * (initVar.gainsTaxInput / 100) + salePriceRaw * (initVar.realEstateFeeInput / 100);
 
@@ -751,7 +760,7 @@ function loadState(idOfClicked: string) {
   Object.assign(initVar, foundState.initVar);
   // Object.assign(comVar, foundState.comVar);
   Object.assign(rawVar, foundState.rawVar);
-  history.pushState({}, "", document.location.origin + "/" + foundState.id);
+  history.pushState({}, "", document.location.origin + "/?id=" + foundState.id);
 
   // console.log("save states: ");
   // console.log(saveStates.list);
@@ -800,6 +809,30 @@ const currOptions =
   mask: ["##,###,###", "#,###,###", "#,##,###", "###,###", "##,###", "#,###", "###", "##", "#"], reverse: false, eager: false
 };
 </script>
+
+
+<style>
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    /* display: none; <- Crashes Chrome on hover */
+    -webkit-appearance: none;
+    margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
+}
+
+input[type=number] {
+    -moz-appearance:textfield; /* Firefox */
+}
+
+/* input[type="number"] {
+  -moz-appearance: textfield;
+}
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+} */
+</style>
 
 <template>
   <v-div v-if="!isFetching.value">
@@ -869,9 +902,9 @@ const currOptions =
             </v-card-title>
             <v-row class="pt-2"> <v-col cols="12" sm="6"> <v-text-field base-color="cyan-accent-2" clearable
                   label="Enter Purchase Price" variant="outlined" v-maska:[currOptions] v-model="initVar.priceInput"
-                  suffix="CHF"></v-text-field>
+                  suffix="CHF" pattern="\d*"></v-text-field>
               </v-col>
-              <v-col cols="12" sm="6"> <v-text-field clearable base-color="cyan-accent-2" label="Enter Rent Per Month"
+              <v-col cols="12" sm="6"> <v-text-field pattern="\d*" clearable base-color="cyan-accent-2" label="Enter Rent Per Month"
                   variant="outlined" v-maska:[currOptions] v-model="initVar.rentInput" suffix='CHF'></v-text-field>
               </v-col>
             </v-row>
@@ -888,7 +921,7 @@ const currOptions =
               longer time to outweigh the cost negatives of purchasing.
             </v-card-text>
             <v-row>
-              <v-col> <v-text-field base-color="cyan-accent-2" label="" variant="outlined" suffix="years"
+              <v-col> <v-text-field base-color="cyan-accent-2" pattern="\d*" label="" variant="outlined" suffix="years"
                   v-model="initVar.yearsInProperty" :rules="[rules.yearsInProperty]"></v-text-field> </v-col>
               <!-- <v-col> <v-card text="The upfront costs
               of buying are better spread out over many years"></v-card> </v-col> -->
@@ -915,12 +948,12 @@ const currOptions =
                     payment must be made with own funds (liquid cash + 3rd pillar)
                     , and total down payment must be at least 20% of the purchase price.
                   </v-card-text>
-                  <v-row> <v-col cols="12" sm="6"> <v-text-field base-color="cyan-accent-2" clearable
+                  <v-row> <v-col cols="12" sm="6"> <v-text-field type="number" base-color="cyan-accent-2" clearable
                         label="% Down from Own Funds + 3rd Pillar" variant="outlined" v-model="initVar.downOwnInput"
                         suffix="%" :rules="[rules.downOwn]"></v-text-field> </v-col>
                     <v-col cols="12" sm="6"> <v-text-field readonly label="Own Funds Down Amount" variant="outlined"
                         v-model="comVar.downOwnDisplay"></v-text-field> </v-col> </v-row>
-                  <v-row class="mb-0"> <v-col class="py-0" cols="12" sm="6"> <v-text-field base-color="cyan-accent-2"
+                  <v-row class="mb-0"> <v-col class="py-0" cols="12" sm="6"> <v-text-field type="number" base-color="cyan-accent-2"
                         clearable label="% Down from 2nd Pillar" variant="outlined" v-model="initVar.downSecondInput"
                         suffix="%" :rules="[rules.down]"></v-text-field> </v-col>
                     <v-col class="py-0" cols="12" sm="6"> <v-text-field readonly label="2nd Pillar Down Amount"
@@ -932,7 +965,7 @@ const currOptions =
                       growth/interest rate, so this analysis excludes the '2nd Pillar Down Amount' from the 'Investment
                       Returns' calculated later.</p>
                   </v-row>
-                  <v-row class="mb-4"> <v-col cols="12" sm="6"> <v-text-field base-color="cyan-accent-2" clearable
+                  <v-row class="mb-4"> <v-col cols="12" sm="6"> <v-text-field type="number" base-color="cyan-accent-2" clearable
                         label="Other Costs as % of Price" persistent-hint hint="Notary fees, property transfer tax, etc"
                         variant="outlined" v-model="initVar.upfrontCostsInput" suffix="%"
                         :rules="[rules.posrate]"></v-text-field> </v-col>
@@ -959,7 +992,7 @@ const currOptions =
               </v-col>
             </v-row>
             <v-row class="mb-0"> <v-col class="py-0"> <v-card text="Mortgage Interest Rate"></v-card> </v-col>
-              <v-col class="py-0"> <v-text-field base-color="cyan-accent-2" label="(Assumed avg. rate)" variant="outlined"
+              <v-col class="py-0"> <v-text-field type="number" hide-spin-buttons base-color="cyan-accent-2" label="(Assumed avg. rate)" variant="outlined"
                   v-model="initVar.mortgageRateInput" suffix="%" :rules="[rules.rate]"></v-text-field> </v-col>
             </v-row>
 
@@ -967,7 +1000,7 @@ const currOptions =
               <div v-show="showMortgage.value">
 
                 <v-row class="mt-2"> <v-col> <v-card text="Years to Second Mortgage Amortisation"></v-card> </v-col>
-                  <v-col> <v-text-field base-color="cyan-accent-2" variant="outlined" label="Max 15 years by law"
+                  <v-col> <v-text-field base-color="cyan-accent-2" pattern="\d*" variant="outlined" label="Max 15 years by law"
                       :rules="[rules.second]" v-model="initVar.secondMortgageAmortizationLength"></v-text-field> </v-col>
                 </v-row>
 
@@ -1011,7 +1044,7 @@ const currOptions =
                     above the first mortgage interest rate. </p>
                 </v-row>
                 <v-row>
-                  <v-col class="pb-0" cols="12" sm="6"> <v-text-field clearable base-color="cyan-accent-2"
+                  <v-col class="pb-0" cols="12" sm="6"> <v-text-field type="number" clearable base-color="cyan-accent-2"
                       label="% Premium" variant="outlined" v-model="initVar.secondPremiumInput" suffix="%"
                       :rules="[rules.rate]"></v-text-field> </v-col>
                   <!-- <v-col> <v-card text="Second Mortgage, Interest per Year"></v-card> </v-col> -->
@@ -1055,7 +1088,7 @@ const currOptions =
                     between
                     0.5 and 1% of purchase price </p>
                 </v-row>
-                <v-row> <v-col> <v-text-field base-color="cyan-accent-2" clearable label="% of Purchase Price"
+                <v-row> <v-col> <v-text-field type="number" base-color="cyan-accent-2" clearable label="% of Purchase Price"
                       variant="outlined" v-model="initVar.maintInput" suffix="%" :rules="[rules.posrate]"></v-text-field>
                   </v-col>
                   <v-col> <v-text-field readonly label="Maintenance per Year" variant="outlined"
@@ -1069,7 +1102,7 @@ const currOptions =
                     However, mortgage interest and maintenance can be deducted in order to offset this additional income.
                   </p>
                 </v-row>
-                <v-row> <v-col cols="12" sm="4"> <v-text-field base-color="cyan-accent-2" clearable
+                <v-row> <v-col cols="12" sm="4"> <v-text-field type="number" base-color="cyan-accent-2" clearable
                       label="Marginal Income Tax Rate" variant="outlined" v-model="initVar.marginalInput" suffix="%"
                       :rules="[rules.numberIn100]"></v-text-field>
                   </v-col>
@@ -1086,7 +1119,7 @@ const currOptions =
                     is often calculated from a fraction of the actual purchase price.
                   </p>
                 </v-row>
-                <v-row> <v-col cols="12" sm="4"> <v-text-field base-color="cyan-accent-2" clearable
+                <v-row> <v-col cols="12" sm="4"> <v-text-field type="number" base-color="cyan-accent-2" clearable
                       label="Eigenmietwert Value" persistent-hint hint="(as % of Price)" variant="outlined"
                       v-model="initVar.eigenInput" suffix="%" :rules="[rules.numberIn100]"></v-text-field>
                   </v-col>
@@ -1102,7 +1135,7 @@ const currOptions =
                     only exists in some cantons, and is levied at a percentage of the purchase price.
                   </p>
                 </v-row>
-                <v-row> <v-col cols="12" sm="6"> <v-text-field base-color="cyan-accent-2" clearable
+                <v-row> <v-col cols="12" sm="6"> <v-text-field type="number" base-color="cyan-accent-2" clearable
                       label="% of Purchase Price, Per Year" variant="outlined" v-model="initVar.propTaxInput" suffix="%"
                       :rules="[rules.posrate]"></v-text-field>
                   </v-col>
@@ -1137,7 +1170,7 @@ const currOptions =
                     at the rate set below.
                   </p>
                 </v-row>
-                <v-row> <v-col cols="12" sm="6"> <v-text-field base-color="cyan-accent-2" clearable
+                <v-row> <v-col cols="12" sm="6"> <v-text-field type="number" base-color="cyan-accent-2" clearable
                       label="Return Rate, Per Year" variant="outlined" v-model="initVar.investInput" suffix="%"
                       :rules="[rules.rate]"></v-text-field>
                   </v-col>
@@ -1150,7 +1183,7 @@ const currOptions =
                     typically
                     1-1.5% in urban areas of Switzerland over the last 50 years</p>
                 </v-row>
-                <v-row> <v-col cols="12" sm="4"> <v-text-field base-color="cyan-accent-2" clearable
+                <v-row> <v-col cols="12" sm="4"> <v-text-field type="number" base-color="cyan-accent-2" clearable
                       label="Growth Rate, Per Year" variant="outlined" v-model="initVar.houseRateInput" suffix="%"
                       :rules="[rules.rate]"></v-text-field>
                   </v-col>
@@ -1163,7 +1196,7 @@ const currOptions =
                       class="font-weight-bold text-body-2 text-high-emphasis">Rental Price Growth Rate</span> is typically
                     coupled to both property price growth rates and interest rates, but can differ over time</p>
                 </v-row>
-                <v-row> <v-col> <v-text-field base-color="cyan-accent-2" clearable label="Growth Rate, Per Year"
+                <v-row> <v-col> <v-text-field type="number" base-color="cyan-accent-2" clearable label="Growth Rate, Per Year"
                       variant="outlined" v-model="initVar.rentRateInput" suffix="%" :rules="[rules.rate]"></v-text-field>
                   </v-col>
                   <v-col> <v-text-field readonly label="Final Monthly Rent" hint="(In Final Year Of Analysis)"
@@ -1193,7 +1226,7 @@ const currOptions =
                     around
                     4% of the sale price in most of Switzerland</p>
                 </v-row>
-                <v-row> <v-col cols="12" sm="4"> <v-text-field base-color="cyan-accent-2" clearable
+                <v-row> <v-col cols="12" sm="4"> <v-text-field type="number" base-color="cyan-accent-2" clearable
                       label="% of Sale Price" variant="outlined" v-model="initVar.realEstateFeeInput" suffix="%"
                       :rules="[rules.posrate]"></v-text-field> </v-col>
                   <v-col cols="12" sm="4"> <v-text-field readonly label="Sale Price" variant="outlined"
@@ -1210,7 +1243,7 @@ const currOptions =
                     are
                     owed.</p>
                 </v-row>
-                <v-row> <v-col cols="12" sm="4"> <v-text-field base-color="cyan-accent-2" clearable label="Tax Rate"
+                <v-row> <v-col cols="12" sm="4"> <v-text-field type="number" base-color="cyan-accent-2" clearable label="Tax Rate"
                       variant="outlined" persistent-hint hint="(% of Gains As Tax)" v-model="initVar.gainsTaxInput"
                       suffix="%" :rules="[rules.rate]"></v-text-field> </v-col>
                   <v-col cols="12" sm="4"> <v-text-field readonly label="Capital Gain" variant="outlined"
@@ -1268,10 +1301,10 @@ const currOptions =
                   outflows corresponding to the numbers here (i.e. no salary, no expenses on food, travel, etc.), how
                   much less (or more) would you have in your account after {{ comVar.yearsTotalCom }} years?
                 </v-card-text>
-                <v-row> <v-col> <v-text-field :base-color="comVar.netBuySign" readonly label="Net Cost, Buying"
+                <v-row> <v-col> <v-text-field :base-color="comVar.netBuySign" readonly :label="comVar.netBuyLabel"
                       variant="outlined" v-model="comVar.netBuyAmount" suffix="CHF"></v-text-field> </v-col>
 
-                  <v-col> <v-text-field :base-color="comVar.netRentSign" readonly label="Net Cost, Renting"
+                  <v-col> <v-text-field :base-color="comVar.netRentSign" readonly :label="comVar.netRentLabel"
                       variant="outlined" v-model="comVar.netRentAmount" suffix="CHF"></v-text-field> </v-col>
                 </v-row>
                 <v-divider :thickness="4" class="border-opacity-50 mb-4"> </v-divider>
@@ -1301,7 +1334,7 @@ const currOptions =
         </div>
 
         <div v-if=smAndDown>
-          <v-navigation-drawer permanent class="py-2 pl-4 pr-4" :width="showMiniDrawer.value ? 250 : 75" touchless
+          <v-navigation-drawer permanent class="py-2 pl-4 pr-4" :width="showMiniDrawer.value ? 250 : 155" touchless
             location="bottom">
             <v-row>
               <v-col>
@@ -1315,18 +1348,19 @@ const currOptions =
                   </v-col>
                 </v-row>
 
-                <v-expand-transition>
 
-                  <div v-show="showMiniDrawer.value">
 
-                    <v-row class="mt-2"> <v-col> <v-text-field :base-color="comVar.netBuySign" readonly
-                          label="Net Cost, Buying" variant="outlined" v-model="comVar.netBuyAmount"
+                    <v-row class="mt-2"> <v-col class="mx-2 pa-0 px-2"> <v-text-field :base-color="comVar.netBuySign" readonly
+                          :label="comVar.netBuyLabel" variant="outlined" v-model="comVar.netBuyAmount"
                           suffix="CHF"></v-text-field> </v-col>
 
-                      <v-col> <v-text-field :base-color="comVar.netRentSign" readonly label="Net Cost, Renting"
+                      <v-col class="ml-2 mr-6 pa-0 px-2"> <v-text-field :base-color="comVar.netRentSign" readonly :label="comVar.netRentLabel"
                           variant="outlined" v-model="comVar.netRentAmount" suffix="CHF"></v-text-field> </v-col>
                     </v-row>
 
+                <v-expand-transition>
+
+                  <div v-show="showMiniDrawer.value">
 
                     <v-card-text class="mb-2 mt-0 pa-0 pb-2 text-medium-emphasis text-caption">A simple way to visualize
                       this number is: if
