@@ -22,5 +22,8 @@
 #   export $newval
 # done < .env
 
+
+## IN ORDER TO SWAP BETWEEN HOTLOAD (DEV) AND PROD PREVIEW (PREVIEW) BUILDS COMMENT TOGGLE BETWEEN THE FOLLOWING TWO LINES
+
 # (cd /app; npm run dev)
 (cd /app; npm run build; npm run preview)
