@@ -335,9 +335,6 @@ function RecurringCostCalculator(buyprice: number, rentprice: number, rentVsBuyC
 
   for (var i = 0; i < comVar.yearsTotalCom; i++) {
 
-    //Updating yearly initial cost investment amount
-    initialBuyCostsInvestedInCaseOfRenting = initialBuyCostsInvestedInCaseOfRenting * (1 + Number(comVar.investCom) / 100);
-
     //Update the interest and taxes so they can be added to the recurring costs of the current year
     firstInterestPaidInCurrentYear = (interest[i]) / 100 * firstAmountLeftToAmortise;
     secondInterestPaidInCurrentYear = (interest[i] + comVar.secondPremiumCom) / 100 * secondAmountLeftToAmortise;
@@ -386,7 +383,7 @@ function RecurringCostCalculator(buyprice: number, rentprice: number, rentVsBuyC
   }
 
 
-  // if (!rentVsBuyComparisonCheck) {
+  if (!rentVsBuyComparisonCheck) {
     //  console.log("CHECK STARTS HERE:")
   //   console.log('first');
   //   console.log(Math.round(firstInterestPaidInCurrentYear));
@@ -402,9 +399,12 @@ function RecurringCostCalculator(buyprice: number, rentprice: number, rentVsBuyC
   //   console.log(Math.round(totalTaxDifferencePaidInCurrentYear));
   //   console.log('this year');
   //   console.log(Math.round(currentYearRecurringCost));
-  //   console.log('cumulative');
-  //   console.log(Math.round(cumulativeRecurringCostsForBuying));
-  // }
+    // console.log('Final investment, buy:');
+    // console.log(Math.round(ongoingBuyOpportunityCost));
+    // console.log(Math.round(cumulativeRecurringCostsForBuying));
+    // console.log('Final initial investment:');
+    // console.log(Math.round(initialBuyCostsInvestedInCaseOfRenting));
+  }
 
   var ttD = totalTaxDifferenceCumulative / comVar.yearsTotalCom;
   var cFA = dInitFirst - firstAmountLeftToAmortise;
