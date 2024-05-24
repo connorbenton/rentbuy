@@ -1,12 +1,12 @@
 name: Upload Website
-
 on:
   push:
     branches:
     - main
-
+permissions:
+  contents: write
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
