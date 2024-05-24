@@ -551,7 +551,7 @@ var comVar = reactive({
   totalDisplayTaxDifference: computed(() => {
     var x = initVar.marginalInput;
     if (x < 0 || x >= 100) { rawVar.totalTaxDifferenceRaw = 0 }
-    return Math.abs(Math.round(rawVar.totalTaxDifferenceRaw)).toLocaleString();
+    return Math.round(rawVar.totalTaxDifferenceRaw).toLocaleString();
   }),
   eigenAmount: computed(() => {
     var x = initVar.eigenInput;
