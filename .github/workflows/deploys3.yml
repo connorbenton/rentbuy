@@ -26,10 +26,6 @@ jobs:
           git add .
           git commit -m "Automated build"
           git push
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
