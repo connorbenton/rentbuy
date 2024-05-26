@@ -854,6 +854,10 @@ var initVar = reactive({ ...initVarFix });
 
 function reset() {
   Object.assign(initVar, initVarFix);
+  var newObj = { a: 0, b: 0, c: 0, d: 0, e: 0, f: 0, g: 0, h: 0, i: 0, j: 0, k: 0, l: 0 };
+  Object.assign(initVar.additionalFirstAmortisationPerMonth, newObj);
+  var newObj2 = { a: 2.5, b: 2.5, c: 2.5, d: 2.5, e: 2.5, f: 2.5, g: 2.5, h: 2.5, i: 2.5, j: 2.5, k: 2.5, l: 2.5 }
+  Object.assign(initVar.mortgageRateInput, newObj2);
   history.pushState({}, "", document.location.origin);
 }
 
