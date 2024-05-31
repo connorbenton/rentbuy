@@ -336,12 +336,14 @@ function RecurringCostCalculator(buyprice: number, rentprice: number, rentVsBuyC
   for (var i = 0; i < comVar.yearsTotalCom; i++) {
 
     //Update the interest and taxes so they can be added to the recurring costs of the current year
-    firstInterestPaidInCurrentYear = (interest[i]) / 100 * firstAmountLeftToAmortise;
-    secondInterestPaidInCurrentYear = (interest[i] + comVar.secondPremiumCom) / 100 * secondAmountLeftToAmortise;
+    firstInterestPaidInCurrentYear = (+interest[i]) / 100 * firstAmountLeftToAmortise;
+
+
+    secondInterestPaidInCurrentYear = (+interest[i] + +comVar.secondPremiumCom) / 100 * secondAmountLeftToAmortise;
     totalTaxDifferencePaidInCurrentYear = (initVar.marginalInput / 100 * (eigRaw - maintRaw - firstInterestPaidInCurrentYear - secondInterestPaidInCurrentYear));
 
     sAmorPerYear = Math.min(sAmorPerYear, secondAmountLeftToAmortise);
-    fAmorPerYear = Math.min(additionalAmort[i] * 12, firstAmountLeftToAmortise);
+    fAmorPerYear = Math.min(+additionalAmort[i] * 12, firstAmountLeftToAmortise);
 
     //Summing maintenance, interest, and tax recurring costs for the current year
     currentYearRecurringCost =
@@ -357,6 +359,32 @@ function RecurringCostCalculator(buyprice: number, rentprice: number, rentVsBuyC
       + totalTaxDifferencePaidInCurrentYear
 
       + propTaxRaw;
+
+    if (!rentVsBuyComparisonCheck) {
+      // console.log("year = " + i);
+
+      // console.log("interest");
+      // console.log(interest[i]);
+      // console.log("sRate");
+      // console.log(+interest[i] + +comVar.secondPremiumCom);
+      // console.log("sLeftAm");
+      // console.log(secondAmountLeftToAmortise);
+
+      //   console.log("firstInterestPaidInCurrentYear");
+      //   console.log(firstInterestPaidInCurrentYear);
+      //   console.log("secondInterestPaidInCurrentYear");
+      //   console.log(secondInterestPaidInCurrentYear);
+
+      //   console.log("sAmorPerYear");
+      //   console.log(sAmorPerYear);
+      //   console.log("fAmorPerYear");
+      //   console.log(fAmorPerYear);
+
+      //   console.log("totalTaxDifferencePaidInCurrentYear");
+      //   console.log(totalTaxDifferencePaidInCurrentYear);
+      //   console.log("currentyearrecurringCost");
+      //   console.log(currentYearRecurringCost);
+    }
 
     ongoingBuyOpportunityCost = (ongoingBuyOpportunityCost + currentYearRecurringCost) * (1 + Number(comVar.investCom) / 100);
 
@@ -379,29 +407,29 @@ function RecurringCostCalculator(buyprice: number, rentprice: number, rentVsBuyC
     currentYearRent = currentYearRent * (1 + Number(comVar.rentRateCom) / 100);
     finalRent = currentYearRent;
     secondAmountLeftToAmortise = Math.max(secondAmountLeftToAmortise - sAmorPerYear, 0);
-    firstAmountLeftToAmortise = Math.max(firstAmountLeftToAmortise - additionalAmort[i] * 12, 0);
+    firstAmountLeftToAmortise = Math.max(firstAmountLeftToAmortise - Number(additionalAmort[i]) * 12, 0);
   }
 
 
   if (!rentVsBuyComparisonCheck) {
     //  console.log("CHECK STARTS HERE:")
-  //   console.log('first');
-  //   console.log(Math.round(firstInterestPaidInCurrentYear));
-  //   console.log('second');
-  //   console.log(Math.round(secondInterestPaidInCurrentYear));
-  //   console.log('maint');
-  //   console.log(Math.round(maintRaw));
-  //   console.log('amor1');
-  //   console.log(Math.round(fAmorPerYear));
-  //   console.log('amor2');
-  //   console.log(Math.round(sAmorPerYear));
-  //   console.log('tax');
-  //   console.log(Math.round(totalTaxDifferencePaidInCurrentYear));
-  //   console.log('this year');
-  //   console.log(Math.round(currentYearRecurringCost));
-    // console.log('Final investment, buy:');
+    //   console.log('first');
+    //   console.log(Math.round(firstInterestPaidInCurrentYear));
+    //   console.log('second');
+    //   console.log(Math.round(secondInterestPaidInCurrentYear));
+    //   console.log('maint');
+    //   console.log(Math.round(maintRaw));
+    //   console.log('amor1');
+    //   console.log(Math.round(fAmorPerYear));
+    //   console.log('amor2');
+    //   console.log(Math.round(sAmorPerYear));
+    //   console.log('tax');
+    //   console.log(Math.round(totalTaxDifferencePaidInCurrentYear));
+    //   console.log('this year');
+    //   console.log(Math.round(currentYearRecurringCost));
+    console.log('Final investment, buy:');
     // console.log(Math.round(ongoingBuyOpportunityCost));
-    // console.log(Math.round(cumulativeRecurringCostsForBuying));
+    console.log(Math.round(cumulativeRecurringCostsForBuying));
     // console.log('Final initial investment:');
     // console.log(Math.round(initialBuyCostsInvestedInCaseOfRenting));
   }
@@ -757,14 +785,14 @@ var comVar = reactive({
 
     while (notEquivYet) {
       loopBreak++;
-      if (loopBreak > 500) {break;}
+      if (loopBreak > 500) { break; }
       if (netRent / netBuyRaw > 1.001) {
         stepSize = stepSize / 10;
         netRent = netRentLast;
         rent = rentLast;
         loopBreak--;
       }
-      if (netRent / netBuyRaw > 0.999 && netRent / netBuyRaw < 1.001) { notEquivYet = false; break;}
+      if (netRent / netBuyRaw > 0.999 && netRent / netBuyRaw < 1.001) { notEquivYet = false; break; }
 
       rentLast = rent;
       // rent = rent + Math.min(100, (netBuyRaw - netRent) / 1000);
@@ -801,7 +829,7 @@ var comVar = reactive({
 
     while (notEquivYet) {
       loopBreak++;
-      if (loopBreak > 500) {break;}
+      if (loopBreak > 500) { break; }
 
       if (netBuy / netRentRaw > 1.001) {
         stepSize = stepSize / 10;
@@ -809,7 +837,7 @@ var comVar = reactive({
         price = priceLast;
         loopBreak--;
       }
-      if (netBuy / netRentRaw > 0.999 && netBuy / netRentRaw < 1.001) { notEquivYet = false; break;}
+      if (netBuy / netRentRaw > 0.999 && netBuy / netRentRaw < 1.001) { notEquivYet = false; break; }
 
       priceLast = price;
       price = price + stepSize;
@@ -1089,7 +1117,7 @@ input::-webkit-inner-spin-button {
                     <v-row class="px-2 ma-0">
                       <v-card-text class="align-self-center text-caption pa-0"> {{ saveStates.list.indexOf(saveState) +
                         1 }} : {{
-                          formatNum(saveState.text1) }} Buy / {{ formatNum(saveState.text2) }} Rent</v-card-text>
+    formatNum(saveState.text1) }} Buy / {{ formatNum(saveState.text2) }} Rent</v-card-text>
                       <v-btn size="x-small" class="pa-0 ml-1 align-self-center" icon="mdi-close"
                         @click="removeState(saveState.id)">
                       </v-btn>
@@ -1394,8 +1422,7 @@ input::-webkit-inner-spin-button {
                   </v-col>
                 </v-row>
 
-                <v-row class="my-0"> <v-col class="py-0"> <v-card
-                      text="Second Mortgage, Amortisation per Year"></v-card>
+                <v-row class="my-0"> <v-col class="py-0"> <v-card text="Second Mortgage, Amortisation per Year"></v-card>
                   </v-col>
                   <v-col class="py-0"> <v-text-field readonly variant="outlined"
                       v-model="comVar.secondAmortisationPerYear"></v-text-field>
@@ -1424,8 +1451,7 @@ input::-webkit-inner-spin-button {
                   </v-col>
                 </v-row>
 
-                <v-row class="my-0"> <v-col> <v-card
-                      text="Initial Second Mortgage Monthly Payments (Years 0-5)"></v-card>
+                <v-row class="my-0"> <v-col> <v-card text="Initial Second Mortgage Monthly Payments (Years 0-5)"></v-card>
                   </v-col>
                   <v-col> <v-text-field readonly variant="outlined" v-model="comVar.secondMonthly"></v-text-field>
                   </v-col>
@@ -1663,12 +1689,12 @@ input::-webkit-inner-spin-button {
                   </v-col>
                 </v-row>
                 <v-row>
-                  <v-col> <v-text-field base-color="red-accent-1" readonly label="Opportunity Costs, Buy"
-                      persistent-hint hint="(Investment Returns on Initial + Recurring Costs)" variant="outlined"
+                  <v-col> <v-text-field base-color="red-accent-1" readonly label="Opportunity Costs, Buy" persistent-hint
+                      hint="(Investment Returns on Initial + Recurring Costs)" variant="outlined"
                       v-model="comVar.opportunityBuy" suffix="CHF"></v-text-field> </v-col>
-                  <v-col> <v-text-field base-color="red-accent-1" readonly label="Opportunity Costs, Rent"
-                      persistent-hint hint="(Investment Returns on Recurring Costs)" variant="outlined"
-                      v-model="comVar.opportunityRent" suffix="CHF"></v-text-field> </v-col>
+                  <v-col> <v-text-field base-color="red-accent-1" readonly label="Opportunity Costs, Rent" persistent-hint
+                      hint="(Investment Returns on Recurring Costs)" variant="outlined" v-model="comVar.opportunityRent"
+                      suffix="CHF"></v-text-field> </v-col>
                 </v-row>
                 <v-row class="mb-2"> <v-col> <v-text-field :base-color="comVar.buyProceedsSign" readonly
                       label="Net Proceeds, Buying" variant="outlined" v-model="comVar.netBuyProceeds" persistent-hint
@@ -1683,10 +1709,12 @@ input::-webkit-inner-spin-button {
                 <v-divider :thickness="4" class="border-opacity-50 mb-2"> </v-divider>
                 <v-card-text class="py-0 text-high-emphasis text-subtitle-1">Net Costs, Buying vs. Renting after
                   {{ comVar.yearsTotalCom }} Years</v-card-text>
-                    <v-card-text class="mb-2 mt-0 pa-0 pb-2 text-medium-emphasis text-caption">A simple way to visualize
-                      these numbers is: if you compared yourself to your doppelgänger who was magically living somewhere for free (compared to these buying and
-                      renting scenarios), how much less than them would you have in your account after {{ comVar.yearsTotalCom }} years?
-                    </v-card-text>
+                <v-card-text class="mb-2 mt-0 pa-0 pb-2 text-medium-emphasis text-caption">A simple way to visualize
+                  these numbers is: if you compared yourself to your doppelgänger who was magically living somewhere for
+                  free (compared to these buying and
+                  renting scenarios), how much less than them would you have in your account after {{ comVar.yearsTotalCom
+                  }} years?
+                </v-card-text>
                 <v-row> <v-col> <v-text-field :base-color="comVar.netBuySign" readonly :label="comVar.netBuyLabel"
                       variant="outlined" v-model="comVar.netBuyAmount" suffix="CHF"></v-text-field> </v-col>
 
@@ -1699,13 +1727,13 @@ input::-webkit-inner-spin-button {
                     <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
                       <span class="text-high-emphasis"> {{ comVar.priceDisplay }} CHF</span>
                       <div v-if="rawVar.netBuyRaw < 0">
-                      purchase with these assumptions, renting will never make more financial sense.
+                        purchase with these assumptions, renting will never make more financial sense.
                       </div>
                       <div v-else>
-                      purchase with these assumptions, if you could find an equivalent rental cheaper than approx.
-                      <br>
-                      <span class="text-high-emphasis"> {{ comVar.equivRent }} CHF</span>
-                      <span class="text-medium-emphasis"> it would make more sense to rent.</span>
+                        purchase with these assumptions, if you could find an equivalent rental cheaper than approx.
+                        <br>
+                        <span class="text-high-emphasis"> {{ comVar.equivRent }} CHF</span>
+                        <span class="text-medium-emphasis"> it would make more sense to rent.</span>
                       </div>
                     </v-card-text>
                   </v-col>
@@ -1714,13 +1742,13 @@ input::-webkit-inner-spin-button {
                       <span class="text-high-emphasis"> {{ initVar.rentInput }} CHF per month</span>
 
                       <div v-if="rawVar.netBuyRaw < 0">
-                      rental with these assumptions, buying will always make more financial sense.
+                        rental with these assumptions, buying will always make more financial sense.
                       </div>
                       <div v-else>
-                      rental with these assumptions, if you could find an equivalent purchase cheaper than approx.
-                      <br>
-                      <span class="text-high-emphasis"> {{ comVar.equivPurchase }} CHF</span>
-                      <span class="text-medium-emphasis"> it would make more sense to purchase.</span>
+                        rental with these assumptions, if you could find an equivalent purchase cheaper than approx.
+                        <br>
+                        <span class="text-high-emphasis"> {{ comVar.equivPurchase }} CHF</span>
+                        <span class="text-medium-emphasis"> it would make more sense to purchase.</span>
                       </div>
 
                     </v-card-text>
@@ -1741,16 +1769,15 @@ input::-webkit-inner-spin-button {
                       {{ comVar.yearsTotalCom }} Years</v-card-text>
                   </v-col>
                   <v-col cols="2" class="pa-2 mt-1 align-self-center">
-                    <v-btn class="align-self-center"
-                      :icon="showMiniDrawer.value ? 'mdi-minus-circle' : 'mdi-plus-circle'"
+                    <v-btn class="align-self-center" :icon="showMiniDrawer.value ? 'mdi-minus-circle' : 'mdi-plus-circle'"
                       @click="showMiniDrawer.value = !showMiniDrawer.value"></v-btn>
                   </v-col>
                 </v-row>
 
 
 
-                <v-row class="mt-2"> <v-col class="mx-2 pa-0 px-2"> <v-text-field :base-color="comVar.netBuySign"
-                      readonly :label="comVar.netBuyLabel" variant="outlined" v-model="comVar.netBuyAmount"
+                <v-row class="mt-2"> <v-col class="mx-2 pa-0 px-2"> <v-text-field :base-color="comVar.netBuySign" readonly
+                      :label="comVar.netBuyLabel" variant="outlined" v-model="comVar.netBuyAmount"
                       suffix="CHF"></v-text-field> </v-col>
 
                   <v-col class="ml-2 mr-6 pa-0 px-2"> <v-text-field :base-color="comVar.netRentSign" readonly
@@ -1763,8 +1790,10 @@ input::-webkit-inner-spin-button {
                   <div v-show="showMiniDrawer.value">
 
                     <v-card-text class="mb-2 mt-0 pa-0 pb-2 text-medium-emphasis text-caption">A simple way to visualize
-                      these numbers is: if you compared yourself to your doppelgänger who was magically living somewhere for free (compared to these buying and
-                      renting scenarios), how much less than them would you have in your account after {{ comVar.yearsTotalCom }} years?
+                      these numbers is: if you compared yourself to your doppelgänger who was magically living somewhere
+                      for free (compared to these buying and
+                      renting scenarios), how much less than them would you have in your account after {{
+                        comVar.yearsTotalCom }} years?
                     </v-card-text>
 
                     <v-divider :thickness="4" class="border-opacity-50 mb-2"> </v-divider>
@@ -1798,41 +1827,41 @@ input::-webkit-inner-spin-button {
                           v-model="comVar.opportunityRent" suffix="CHF"></v-text-field> </v-col>
                     </v-row>
                     <v-row class="mb-2"> <v-col> <v-text-field :base-color="comVar.buyProceedsSign" readonly
-                          label="Net Proceeds, Buying" variant="outlined" v-model="comVar.netBuyProceeds"
-                          persistent-hint hint="(Equity - Sale Costs)" suffix="CHF"></v-text-field> </v-col>
+                          label="Net Proceeds, Buying" variant="outlined" v-model="comVar.netBuyProceeds" persistent-hint
+                          hint="(Equity - Sale Costs)" suffix="CHF"></v-text-field> </v-col>
                       <v-col> </v-col>
                     </v-row>
 
                     <v-row> <v-col>
 
-                    <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
-                      <span class="text-high-emphasis"> {{ comVar.priceDisplay }} CHF</span>
-                      <div v-if="rawVar.netBuyRaw < 0">
-                      purchase with these assumptions, renting will never make more financial sense.
-                      </div>
-                      <div v-else>
-                      purchase with these assumptions, if you could find an equivalent rental cheaper than approx.
-                      <br>
-                      <span class="text-high-emphasis"> {{ comVar.equivRent }} CHF</span>
-                      <span class="text-medium-emphasis"> it would make more sense to rent.</span>
-                      </div>
-                    </v-card-text>
-                  </v-col>
-                  <v-col>
-                    <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
-                      <span class="text-high-emphasis"> {{ initVar.rentInput }} CHF per month</span>
+                        <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
+                          <span class="text-high-emphasis"> {{ comVar.priceDisplay }} CHF</span>
+                          <div v-if="rawVar.netBuyRaw < 0">
+                            purchase with these assumptions, renting will never make more financial sense.
+                          </div>
+                          <div v-else>
+                            purchase with these assumptions, if you could find an equivalent rental cheaper than approx.
+                            <br>
+                            <span class="text-high-emphasis"> {{ comVar.equivRent }} CHF</span>
+                            <span class="text-medium-emphasis"> it would make more sense to rent.</span>
+                          </div>
+                        </v-card-text>
+                      </v-col>
+                      <v-col>
+                        <v-card-text class="pt-0 ma-0 text-medium-emphasis text-caption">Compared to a <br>
+                          <span class="text-high-emphasis"> {{ initVar.rentInput }} CHF per month</span>
 
-                      <div v-if="rawVar.netBuyRaw < 0">
-                      rental with these assumptions, buying will always make more financial sense.
-                      </div>
-                      <div v-else>
-                      rental with these assumptions, if you could find an equivalent purchase cheaper than approx.
-                      <br>
-                      <span class="text-high-emphasis"> {{ comVar.equivPurchase }} CHF</span>
-                      <span class="text-medium-emphasis"> it would make more sense to purchase.</span>
-                      </div>
+                          <div v-if="rawVar.netBuyRaw < 0">
+                            rental with these assumptions, buying will always make more financial sense.
+                          </div>
+                          <div v-else>
+                            rental with these assumptions, if you could find an equivalent purchase cheaper than approx.
+                            <br>
+                            <span class="text-high-emphasis"> {{ comVar.equivPurchase }} CHF</span>
+                            <span class="text-medium-emphasis"> it would make more sense to purchase.</span>
+                          </div>
 
-                    </v-card-text>
+                        </v-card-text>
 
                       </v-col>
                     </v-row>
